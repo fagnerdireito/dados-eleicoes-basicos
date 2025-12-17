@@ -13,6 +13,7 @@
 * uma lista de partidos em geral agrupados por partido
 * uma lista de votos por partido por município ou por estado
 - Sugestões de formato poderia ser em um banco de dados relacional, como o MySQL.
+- os dados serao consumidos por uma aplicacao laravel ao final.
 
 ## script python
 o script python deve utilizar as boas práticas de ciência de dados, como:
@@ -37,9 +38,56 @@ bweb_1t_AC_051020221321/leiame-boletimurnaweb.pdf
 - por fim dentro de cada pasta tem o seu arquivo csv:
 * bweb_1t_AC_051020221321/bweb_1t_AC_051020221321.csv
 
+- se novas pastas forem adicionadas, o script python devera ser capaz de detectar e processar os novos arquivos e pastas sem duplicar os registros já processados ou adicionados no banco de dados.
+
 ## formato dos arquivos
 os detalhes da estrutura dos arquivos csv podem ser encontrados no arquivo descricao_arquivos.md
 
+## pipeline de processamento python
+# Estrutura sugerida do projeto
+election_data_pipeline/
+├── config/
+│   └── settings.py          # Configurações (paths, encoding, etc)
+├── src/
+│   ├── extractors/
+│   │   └── csv_extractor.py  # Leitura dos CSVs agrupados por ano detectado dinamicamente agrupando nomes de pastas
+│   ├── transformers/
+│   │   ├── cleaner.py        # Limpeza de dados
+│   │   ├── aggregator.py     # Agregações
+│   │   └── normalizer.py     # Normalização para BD
+│   ├── loaders/
+│   │   └── mysql_loader.py   # Carga no MySQL
+│   └── utils/
+│       └── file_parser.py    # Parser de nomenclatura
+├── scripts/
+│   └── run_pipeline.py
+└── requirements.txt
+
+## sh file
+- o script run_pipeline.sh deve ser executado para rodar o pipeline de processamento python.
+- o script run_pipeline.sh deve ser configurado com as seguintes variáveis:
+- ANO_ELEITORAL=2022
+- TIPO_ELEICAO=1
+- UF=AC
+- CIDADE=AC
+- TURNOS=(1 2)
+- o script run_pipeline.sh deve ser executado para cada ano eleitoral, tipo eleitoral, estado, cidade e turno.
+
+## Estrutura de Banco de Dados
+- eleicoes (id, ano, turno, tipo_eleicao, dt_pleito)
+- estados (id, sigla, nome)
+- municipios (id, estado_id, codigo_tse, nome)
+- zonas (id, municipio_id, nr_zona)
+- secoes (id, zona_id, nr_secao, nr_local_votacao, qt_aptos)
+- cargos (id, codigo, descricao)
+- partidos (id, numero, sigla, nome)
+- candidatos (id, partido_id, cargo_id, nr_votavel, nome, eleicao_id)
+- votos_consolidados (id, eleicao_id, municipio_id, cargo_id, candidato_id, total_votos, total_validos, total_brancos, total_nulos)
+- votos_por_secao (id, secao_id, candidato_id, qt_votos) -- opcional para drill-down
+
+## Otimizações para Performance
+- Usar chunks para leitura de arquivos grandes
+- Processar em paralelo com multiprocessing
 
 ## conexao mysql
 DB_CONNECTION=mysql
