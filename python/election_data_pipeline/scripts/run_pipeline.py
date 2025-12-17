@@ -35,12 +35,10 @@ def main():
     for file_path, metadata in files:
         logger.info(f"Processing {file_path} (Turno: {metadata['turno']}, UF: {metadata['uf']})")
         
-        extractor = CSVExtractor(file_path)
+        file_id = loader.register_file(file_path)
+        total_lines = 0
         
-        # We need a robust way to handle normalization. 
-        # For this initial setup, let's verify we can read and maybe load raw data or minimal structure.
-        # Given the complexity of "Normalizer" logic with cache, I'll create a simplified logic here 
-        # to prove the pipeline works, then we can expand.
+        extractor = CSVExtractor(file_path)
         
         try:
             for chunk in tqdm(extractor.extract_chunks(), desc="Processing Chunks"):
@@ -50,9 +48,13 @@ def main():
                 # Transform and Load (Normalized + Consolidated)
                 transformer.process_chunk(chunk, metadata)
                 
+                total_lines += len(chunk)
+                
+            loader.update_file_status(file_id, 'PROCESSED', total_lines)
             logger.info(f"Successfully processed {file_path}")
             
         except Exception as e:
+            loader.update_file_status(file_id, 'ERROR', total_lines)
             logger.error(f"Failed to process {file_path}: {e}")
 
 if __name__ == '__main__':

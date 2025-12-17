@@ -125,6 +125,95 @@ class Transformer:
             # Map back to IDs and insert
             self.bulk_insert_consolidados(eleicao_id, agg_df, metadata['uf'])
 
+            # 6. Normalization of Zonas, Secoes and Insertion of Votos Secao
+            # Uniques for Zonas/Secoes
+            # Group by Municipio, Zona, Secao
+            secoes_df = group[['CD_MUNICIPIO', 'NR_ZONA', 'NR_SECAO', 'NR_LOCAL_VOTACAO', 'QT_APTOS', 'QT_COMPARECIMENTO', 'QT_ABSTENCOES']].drop_duplicates(['CD_MUNICIPIO', 'NR_ZONA', 'NR_SECAO'])
+            
+            for _, row in secoes_df.iterrows():
+                self.ensure_zona_secao(row, metadata['uf'])
+                
+            # 7. Bulk Insert Votos Secao
+            self.bulk_insert_votos_secao(eleicao_id, group, metadata['uf'])
+
+
+    def ensure_zona_secao(self, row, uf):
+        # 1. Ensure Zona
+        estado_id = self.cache_estados.get(uf)
+        if not estado_id: return
+        
+        cd_mun = str(row['CD_MUNICIPIO'])
+        mun_id = self.cache_municipios.get((estado_id, cd_mun))
+        if not mun_id: return
+        
+        nr_zona = str(row['NR_ZONA'])
+        if (mun_id, nr_zona) not in self.cache_zonas:
+            res = self.loader.execute_query(text("SELECT id FROM zonas WHERE municipio_id=:mid AND nr_zona=:nr"), 
+                                          {'mid': mun_id, 'nr': nr_zona}).first()
+            if res:
+                self.cache_zonas[(mun_id, nr_zona)] = res[0]
+            else:
+                self.loader.execute_query(text("INSERT INTO zonas (municipio_id, nr_zona) VALUES (:mid, :nr)"), 
+                                        {'mid': mun_id, 'nr': nr_zona})
+                self.cache_zonas[(mun_id, nr_zona)] = self.loader.execute_query(text("SELECT id FROM zonas WHERE municipio_id=:mid AND nr_zona=:nr"), 
+                                          {'mid': mun_id, 'nr': nr_zona}).first()[0]
+        
+        zona_id = self.cache_zonas[(mun_id, nr_zona)]
+        
+        # 2. Ensure Secao
+        nr_secao = str(row['NR_SECAO'])
+        if (zona_id, nr_secao) not in self.cache_secoes:
+             res = self.loader.execute_query(text("SELECT id FROM secoes WHERE zona_id=:zid AND nr_secao=:nr"), 
+                                           {'zid': zona_id, 'nr': nr_secao}).first()
+             if res:
+                 self.cache_secoes[(zona_id, nr_secao)] = res[0]
+             else:
+                 # Insert with extra data (local, aptos) - though these might change per file?
+                 # Assuming first encounter is valid source for metadata
+                 self.loader.execute_query(text("INSERT INTO secoes (zona_id, nr_secao, nr_local_votacao) VALUES (:zid, :nr, :loc)"), 
+                                         {'zid': zona_id, 'nr': nr_secao, 'loc': str(row.get('NR_LOCAL_VOTACAO', ''))})
+                 self.cache_secoes[(zona_id, nr_secao)] = self.loader.execute_query(text("SELECT id FROM secoes WHERE zona_id=:zid AND nr_secao=:nr"), 
+                                           {'zid': zona_id, 'nr': nr_secao}).first()[0]
+
+    def bulk_insert_votos_secao(self, eleicao_id, group_df, uf):
+        data = []
+        estado_id = self.cache_estados.get(uf)
+        if not estado_id: return
+        
+        for _, row in group_df.iterrows():
+             cd_mun = str(row['CD_MUNICIPIO'])
+             mun_id = self.cache_municipios.get((estado_id, cd_mun))
+             if not mun_id: continue
+             
+             nr_zona = str(row['NR_ZONA'])
+             zona_id = self.cache_zonas.get((mun_id, nr_zona))
+             if not zona_id: continue
+             
+             nr_secao = str(row['NR_SECAO'])
+             secao_id = self.cache_secoes.get((zona_id, nr_secao))
+             if not secao_id: continue
+             
+             cd_cargo = str(row['CD_CARGO_PERGUNTA'])
+             cargo_id = self.cache_cargos.get(cd_cargo)
+             
+             nr_votavel = str(row['NR_VOTAVEL'])
+             candidato_id = self.cache_candidatos.get((eleicao_id, cargo_id, nr_votavel))
+             
+             if cargo_id and candidato_id:
+                 data.append({
+                     'eleicao_id': eleicao_id,
+                     'secao_id': secao_id,
+                     'cargo_id': cargo_id,
+                     'candidato_id': candidato_id,
+                     'qt_votos': int(row['QT_VOTOS']),
+                     'qt_aptos': int(row['QT_APTOS']) if 'QT_APTOS' in row else 0,
+                     'qt_comparecimento': int(row['QT_COMPARECIMENTO']) if 'QT_COMPARECIMENTO' in row else 0,
+                     'qt_abstencoes': int(row['QT_ABSTENCOES']) if 'QT_ABSTENCOES' in row else 0
+                 })
+                 
+        if data:
+            df_insert = pd.DataFrame(data)
+            self.loader.load_df(df_insert, 'votos_secao')
 
     def ensure_municipio(self, row):
         # Implementation of get_or_create for Municipio

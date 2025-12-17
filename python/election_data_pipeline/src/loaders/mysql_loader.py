@@ -20,6 +20,34 @@ class MySQLLoader:
             conn.commit()
             return result
 
+    def register_file(self, path):
+        try:
+            with self.engine.connect() as conn:
+                # Check if exists
+                res = conn.execute(text("SELECT id FROM arquivos_processados WHERE path=:path"), {'path': path}).first()
+                if res:
+                    return res[0]
+                
+                # Insert
+                conn.execute(text("INSERT INTO arquivos_processados (path, status, linhas) VALUES (:path, 'PROCESSING', 0)"), 
+                           {'path': path})
+                conn.commit()
+                
+                res = conn.execute(text("SELECT id FROM arquivos_processados WHERE path=:path"), {'path': path}).first()
+                return res[0]
+        except Exception as e:
+            logger.error(f"Error registering file {path}: {e}")
+            return None
+
+    def update_file_status(self, file_id, status, lines=0):
+        try:
+            with self.engine.connect() as conn:
+                conn.execute(text("UPDATE arquivos_processados SET status=:status, linhas=:lines WHERE id=:id"), 
+                           {'status': status, 'lines': lines, 'id': file_id})
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Error updating file {file_id}: {e}")
+
     def load_df(self, df, table_name, if_exists='append', chunksize=1000):
         try:
             df.to_sql(
