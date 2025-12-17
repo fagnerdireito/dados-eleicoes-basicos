@@ -42,3 +42,14 @@
 - o arquivo de boletim de urna é nomeado `bweb_1t_AC_051020221321.csv`
 - o arquivo de boletim de urna é separado por `;`
 - o arquivo de boletim de urna é codificado em `latin-1` e também é bem lido em `windows1252`
+
+## Lista de arquivos de imagem de referencia
+
+- captura_20251217_012556.png
+- captura_20251217_012607.png
+- captura_20251217_012624.png
+- captura_20251217_012633.png
+- captura_20251217_012641.png
+- captura_20251217_012648.png
+- captura_20251217_012700.png
+- captura_20251217_012706.png
