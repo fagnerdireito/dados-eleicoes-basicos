@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-export DATA_DIR="/Users/fagnerdossgoncalves/wwwroot/lab/elections" # Adjust as needed
+export DATA_DIR="/Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/bweb"
 export DB_CONNECTION=mysql
 export DB_HOST=127.0.0.1
 export DB_PORT=3306
