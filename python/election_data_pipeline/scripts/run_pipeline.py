@@ -34,28 +34,32 @@ def main():
     
     for file_path, metadata in files:
         logger.info(f"Processing {file_path} (Turno: {metadata['turno']}, UF: {metadata['uf']})")
-        
-        file_id = loader.register_file(file_path)
+
+        file_id, already_processed = loader.register_file(file_path)
+        if already_processed:
+            logger.info(f"Skipping already processed file: {file_path}")
+            continue
+
         total_lines = 0
-        
+
         extractor = CSVExtractor(file_path)
-        
+
         try:
             for chunk in tqdm(extractor.extract_chunks(), desc="Processing Chunks"):
                 # Clean
                 chunk = Cleaner.clean_chunk(chunk)
-                
+
                 # Transform and Load (Normalized + Consolidated)
                 transformer.process_chunk(chunk, metadata)
-                
+
                 total_lines += len(chunk)
-                
+
             loader.update_file_status(file_id, 'PROCESSED', total_lines)
             logger.info(f"Successfully processed {file_path}")
-            
+
         except Exception as e:
             loader.update_file_status(file_id, 'ERROR', total_lines)
-            logger.error(f"Failed to process {file_path}: {e}")
+            logger.error(f"Failed to process {file_path}: {e}", exc_info=True)
 
 if __name__ == '__main__':
     main()

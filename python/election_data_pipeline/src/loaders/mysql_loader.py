@@ -21,23 +21,34 @@ class MySQLLoader:
             return result
 
     def register_file(self, path):
+        """
+        Registra o arquivo na tabela de controle.
+        Retorna uma tupla (file_id, already_processed).
+        already_processed=True indica que o arquivo já foi processado com sucesso e deve ser pulado.
+        """
         try:
             with self.engine.connect() as conn:
                 # Check if exists
-                res = conn.execute(text("SELECT id FROM arquivos_processados WHERE path=:path"), {'path': path}).first()
+                res = conn.execute(text("SELECT id, status FROM arquivos_processados WHERE path=:path"), {'path': path}).first()
                 if res:
-                    return res[0]
-                
-                # Insert
-                conn.execute(text("INSERT INTO arquivos_processados (path, status, linhas) VALUES (:path, 'PROCESSING', 0)"), 
-                           {'path': path})
+                    file_id, status = res[0], res[1]
+                    if status == 'PROCESSED':
+                        return file_id, True
+                    # ERROR or PROCESSING: allow retry
+                    conn.execute(text("UPDATE arquivos_processados SET status='PROCESSING', linhas=0 WHERE id=:id"), {'id': file_id})
+                    conn.commit()
+                    return file_id, False
+
+                # Insert new record
+                conn.execute(text("INSERT INTO arquivos_processados (path, status, linhas) VALUES (:path, 'PROCESSING', 0)"),
+                             {'path': path})
                 conn.commit()
-                
+
                 res = conn.execute(text("SELECT id FROM arquivos_processados WHERE path=:path"), {'path': path}).first()
-                return res[0]
+                return res[0], False
         except Exception as e:
             logger.error(f"Error registering file {path}: {e}")
-            return None
+            return None, False
 
     def update_file_status(self, file_id, status, lines=0):
         try:
