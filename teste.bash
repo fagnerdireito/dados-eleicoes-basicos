@@ -76,3 +76,76 @@ Sempre considere as seguintes variáveis de conexão para operações de banco d
 
 
 
+
+
+
+
+
+
+
+
+agora crie um novo arquivo python isolado para criar uma tabela unificada de todos os csv dentro de /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/dados/consulta_vagas_*
+pattern: consulta_vagas_{ano}
+o cabecalho deles é 
+2024:
+"DT_GERACAO";"HH_GERACAO";"ANO_ELEICAO";"CD_TIPO_ELEICAO";"NM_TIPO_ELEICAO";"CD_ELEICAO";"DS_ELEICAO";"DT_ELEICAO";"DT_POSSE";"SG_UF";"SG_UE";"NM_UE";"CD_CARGO";"DS_CARGO";"QT_VAGA"
+
+esse script python vai criar uma tabela unica com todos os dados destes consulta_vagas.
+o nome da tabela vai ser consulta_vagas.
+
+observe o arquivo import_consulta_cand.py como referencia.
+crie um indice para nao permitir duplicidade de dados.
+
+# Regras de Contexto
+- language: python
+- Database: MySQL
+- os arquivos csv sempre estao com codificacao latin1 
+
+### Database Configuration (Development)
+Sempre considere as seguintes variáveis de conexão para operações de banco de dados que estao no arquivo .env:
+* **Connection:** `mysql`
+* **Host:** `127.0.0.1` (localhost)
+* **Port:** `3306`
+* **Database:** `eleicoes`
+* **User:** `root`
+* **Password:** (empty)
+
+
+
+
+
+
+
+
+agora crie um novo arquivo python isolado para criar uma view mysql com o total de votos por candidato por municipio por ano.
+exemplo como era no bigquery:
+SELECT
+    MAX(cc.NM_URNA_CANDIDATO) AS NM_URNA_CANDIDATO,
+    bu.NM_VOTAVEL,
+    SUM(bu.QT_VOTOS) AS total_votos,
+    MAX(bu.ANO_ELEICAO) AS ANO_ELEICAO,
+    MAX(bu.NM_MUNICIPIO) AS NM_MUNICIPIO,
+    MAX(bu.CD_MUNICIPIO) AS CD_MUNICIPIO,
+    bu.CD_ELEICAO,
+    bu.NR_TURNO,
+    MAX(bu.SG_UF) AS SG_UF,
+    MAX(bu.DS_CARGO_PERGUNTA) AS DS_CARGO_PERGUNTA,
+    MAX(cc.SG_PARTIDO) AS SG_PARTIDO,
+    MAX(cc.DS_SIT_TOT_TURNO) AS SITUACAO_ELEICAO
+FROM
+    `elegis-1262.eleicoes2024.boletim_urna` AS bu
+INNER JOIN
+    `elegis-1262.eleicoes2024.consulta_cand` AS cc
+    ON bu.ANO_ELEICAO = cc.ANO_ELEICAO
+    AND bu.NR_VOTAVEL = cc.NR_CANDIDATO
+    AND bu.SG_UF = cc.SG_UF
+    AND bu.CD_CARGO_PERGUNTA = cc.CD_CARGO
+    AND CAST(bu.CD_MUNICIPIO AS STRING) = CAST(cc.SG_UE AS STRING)
+GROUP BY
+    bu.CD_ELEICAO,
+    bu.NR_TURNO,
+    bu.NM_VOTAVEL
+ORDER BY
+    total_votos DESC
+
+- mas agora implemente em formato mysql.
