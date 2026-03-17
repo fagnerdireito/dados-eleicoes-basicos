@@ -33,16 +33,40 @@ class Transformer:
             self.cache_eleicoes[key] = row_db[0]
             return row_db[0]
 
+        # Get dt_pleito from row
+        dt_pleito = None
+        # Try different column names and formats
+        for col in ['DT_PLEITO', 'DT_ELEICAO']:
+            if col in row and pd.notna(row[col]):
+                val = str(row[col]).strip()
+                try:
+                    # Try YYYY-MM-DD format (sometimes with time)
+                    dt_pleito = pd.to_datetime(val).date()
+                    break
+                except:
+                    try:
+                        # Try DD/MM/YYYY format
+                        dt_pleito = datetime.strptime(val, '%d/%m/%Y').date()
+                        break
+                    except:
+                        pass
+        
+        # Fallback to DT_GERACAO if still None
+        if dt_pleito is None and 'DT_GERACAO' in row:
+            try:
+                dt_pleito = datetime.strptime(row['DT_GERACAO'], '%d/%m/%Y').date()
+            except:
+                pass
+
         insert = text("""
             INSERT INTO eleicoes (ano, turno, tipo_eleicao, dt_pleito, ds_eleicao, cd_eleicao)
             VALUES (:ano, :turno, :tipo, :dt_pleito, :ds_eleicao, :cd_eleicao)
         """)
-        dt_pleito = datetime.strptime(row['DT_GERACAO'], '%d/%m/%Y').date() if 'DT_GERACAO' in row else None
 
         self.loader.execute_query(insert, {
             'ano': metadata['ano'],
             'turno': metadata['turno'],
-            'tipo': 1,
+            'tipo': 2 if metadata.get('type') == 'vagas' or 'Municipais' in row.get('DS_ELEICAO', '') else 1,
             'dt_pleito': dt_pleito,
             'ds_eleicao': row.get('DS_ELEICAO', ''),
             'cd_eleicao': str(row['CD_ELEICAO'])
@@ -55,6 +79,14 @@ class Transformer:
         Main method to process a chunk and load it into normalized tables.
         """
         if len(chunk) == 0:
+            return
+
+        if metadata.get('type') == 'vagas':
+            self.process_vagas_chunk(chunk, metadata)
+            return
+
+        if metadata.get('type') == 'candidatos':
+            self.process_candidatos_chunk(chunk, metadata)
             return
 
         for cd_eleicao, group in chunk.groupby('CD_ELEICAO'):
@@ -99,6 +131,177 @@ class Transformer:
             except Exception as e:
                 logger.error(f"Erro ao processar grupo CD_ELEICAO={cd_eleicao}: {e}", exc_info=True)
                 # Continua para o próximo grupo sem interromper o chunk inteiro
+
+    def process_vagas_chunk(self, chunk, metadata):
+        """
+        Processes a chunk of vacancy data.
+        """
+        for cd_eleicao, group in chunk.groupby('CD_ELEICAO'):
+            try:
+                first_row = group.iloc[0]
+                eleicao_id = self.get_or_create_eleicao(metadata, first_row)
+
+                # 1. Ensure Municipios
+                # In vacancies CSV: SG_UF, SG_UE, NM_UE
+                for _, row in group[['SG_UF', 'SG_UE', 'NM_UE']].drop_duplicates().iterrows():
+                    self.ensure_municipio({
+                        'SG_UF': row['SG_UF'],
+                        'CD_MUNICIPIO': row['SG_UE'],
+                        'NM_MUNICIPIO': row['NM_UE']
+                    })
+
+                # 2. Ensure Cargos
+                # In vacancies CSV: CD_CARGO, DS_CARGO
+                for _, row in group[['CD_CARGO', 'DS_CARGO']].drop_duplicates().iterrows():
+                    self.ensure_cargo({
+                        'CD_CARGO_PERGUNTA': row['CD_CARGO'],
+                        'DS_CARGO_PERGUNTA': row['DS_CARGO']
+                    })
+
+                # 3. Bulk Insert Vagas
+                self.bulk_insert_vagas(eleicao_id, group)
+
+            except Exception as e:
+                logger.error(f"Erro ao processar vagas para CD_ELEICAO={cd_eleicao}: {e}", exc_info=True)
+
+    def process_candidatos_chunk(self, chunk, metadata):
+        """
+        Processes a chunk of candidate data.
+        """
+        for cd_eleicao, group in chunk.groupby('CD_ELEICAO'):
+            try:
+                first_row = group.iloc[0]
+                eleicao_id = self.get_or_create_eleicao(metadata, first_row)
+
+                # 1. Ensure Municipios
+                # In candidates CSV: SG_UF, SG_UE, NM_UE
+                for _, row in group[['SG_UF', 'SG_UE', 'NM_UE']].drop_duplicates().iterrows():
+                    self.ensure_municipio({
+                        'SG_UF': row['SG_UF'],
+                        'CD_MUNICIPIO': row['SG_UE'],
+                        'NM_MUNICIPIO': row['NM_UE']
+                    })
+
+                # 2. Ensure Cargos
+                # In candidates CSV: CD_CARGO, DS_CARGO
+                for _, row in group[['CD_CARGO', 'DS_CARGO']].drop_duplicates().iterrows():
+                    self.ensure_cargo({
+                        'CD_CARGO_PERGUNTA': row['CD_CARGO'],
+                        'DS_CARGO_PERGUNTA': row['DS_CARGO']
+                    })
+
+                # 3. Ensure Partidos
+                # In candidates CSV: NR_PARTIDO, SG_PARTIDO, NM_PARTIDO
+                for _, row in group[['NR_PARTIDO', 'SG_PARTIDO', 'NM_PARTIDO']].drop_duplicates().iterrows():
+                    self.ensure_partido(row)
+
+                # 4. Bulk Insert Candidatos Detalhes
+                self.bulk_insert_candidatos_detalhes(eleicao_id, group)
+
+            except Exception as e:
+                logger.error(f"Erro ao processar candidatos para CD_ELEICAO={cd_eleicao}: {e}", exc_info=True)
+
+    def bulk_insert_candidatos_detalhes(self, eleicao_id, group_df):
+        data = []
+        for _, row in group_df.iterrows():
+            uf = row['SG_UF']
+            estado_id = self.cache_estados.get(uf)
+            if not estado_id:
+                continue
+
+            cd_mun = str(row['SG_UE'])
+            mun_id = self.cache_municipios.get((estado_id, cd_mun))
+
+            cd_cargo = str(row['CD_CARGO'])
+            cargo_id = self.cache_cargos.get(cd_cargo)
+            if not cargo_id:
+                continue
+
+            nr_partido = str(row['NR_PARTIDO']).strip()
+            partido_id = self.cache_partidos.get(nr_partido)
+
+            dt_nasc = None
+            if pd.notna(row.get('DT_NASCIMENTO')):
+                try:
+                    dt_nasc = datetime.strptime(str(row['DT_NASCIMENTO']), '%d/%m/%Y').date()
+                except:
+                    pass
+
+            data.append({
+                'eleicao_id': eleicao_id,
+                'municipio_id': mun_id,
+                'cargo_id': cargo_id,
+                'partido_id': partido_id,
+                'sq_candidato': str(row['SQ_CANDIDATO']),
+                'nr_candidato': str(row['NR_CANDIDATO']),
+                'nm_candidato': row.get('NM_CANDIDATO'),
+                'nm_urna_candidato': row.get('NM_URNA_CANDIDATO'),
+                'nm_social_candidato': row.get('NM_SOCIAL_CANDIDATO'),
+                'nr_cpf_candidato': row.get('NR_CPF_CANDIDATO'),
+                'ds_email': row.get('DS_EMAIL'),
+                'cd_situacao_candidatura': int(row['CD_SITUACAO_CANDIDATURA']) if pd.notna(row.get('CD_SITUACAO_CANDIDATURA')) else None,
+                'ds_situacao_candidatura': row.get('DS_SITUACAO_CANDIDATURA'),
+                'tp_agremiacao': row.get('TP_AGREMIACAO'),
+                'nr_partido': str(row['NR_PARTIDO']),
+                'sg_partido': row.get('SG_PARTIDO'),
+                'nm_partido': row.get('NM_PARTIDO'),
+                'nr_federacao': str(row.get('NR_FEDERACAO')),
+                'nm_federacao': row.get('NM_FEDERACAO'),
+                'sg_federacao': row.get('SG_FEDERACAO'),
+                'ds_composicao_federacao': row.get('DS_COMPOSICAO_FEDERACAO'),
+                'sq_coligacao': str(row.get('SQ_COLIGACAO')),
+                'nm_coligacao': row.get('NM_COLIGACAO'),
+                'ds_composicao_coligacao': row.get('DS_COMPOSICAO_COLIGACAO'),
+                'sg_uf_nascimento': row.get('SG_UF_NASCIMENTO'),
+                'dt_nascimento': dt_nasc,
+                'nr_titulo_eleitoral_candidato': row.get('NR_TITULO_ELEITORAL_CANDIDATO'),
+                'cd_genero': int(row['CD_GENERO']) if pd.notna(row.get('CD_GENERO')) else None,
+                'ds_genero': row.get('DS_GENERO'),
+                'cd_grau_instrucao': int(row['CD_GRAU_INSTRUCAO']) if pd.notna(row.get('CD_GRAU_INSTRUCAO')) else None,
+                'ds_grau_instrucao': row.get('DS_GRAU_INSTRUCAO'),
+                'cd_estado_civil': int(row['CD_ESTADO_CIVIL']) if pd.notna(row.get('CD_ESTADO_CIVIL')) else None,
+                'ds_estado_civil': row.get('DS_ESTADO_CIVIL'),
+                'cd_cor_raca': int(row['CD_COR_RACA']) if pd.notna(row.get('CD_COR_RACA')) else None,
+                'ds_cor_raca': row.get('DS_COR_RACA'),
+                'cd_ocupacao': int(row['CD_OCUPACAO']) if pd.notna(row.get('CD_OCUPACAO')) else None,
+                'ds_ocupacao': row.get('DS_OCUPACAO'),
+                'cd_sit_tot_turno': int(row['CD_SIT_TOT_TURNO']) if pd.notna(row.get('CD_SIT_TOT_TURNO')) else None,
+                'ds_sit_tot_turno': row.get('DS_SIT_TOT_TURNO')
+            })
+
+        if data:
+            df_insert = pd.DataFrame(data)
+            self.loader.load_df(df_insert, 'candidatos_detalhes')
+
+    def bulk_insert_vagas(self, eleicao_id, group_df):
+        data = []
+        for _, row in group_df.iterrows():
+            uf = row['SG_UF']
+            estado_id = self.cache_estados.get(uf)
+            if not estado_id:
+                continue
+
+            cd_mun = str(row['SG_UE'])
+            mun_id = self.cache_municipios.get((estado_id, cd_mun))
+            if not mun_id:
+                continue
+
+            cd_cargo = str(row['CD_CARGO'])
+            cargo_id = self.cache_cargos.get(cd_cargo)
+            if not cargo_id:
+                continue
+
+            data.append({
+                'eleicao_id': eleicao_id,
+                'municipio_id': mun_id,
+                'cargo_id': cargo_id,
+                'quantidade': int(row['QT_VAGA'])
+            })
+
+        if data:
+            df_insert = pd.DataFrame(data)
+            # Use MySQL upsert if possible or just load (vagas are unique by election, muni, cargo)
+            self.loader.load_df(df_insert, 'vagas')
 
     def ensure_zona_secao(self, row, uf):
         estado_id = self.cache_estados.get(uf)

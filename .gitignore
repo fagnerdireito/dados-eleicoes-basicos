@@ -26,3 +26,6 @@ ENV/
 Thumbs.db
 
 .bash
+
+dados/foto_cand*
+dados/fotos/

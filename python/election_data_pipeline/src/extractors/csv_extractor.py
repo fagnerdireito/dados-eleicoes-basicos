@@ -27,7 +27,15 @@ class CSVExtractor:
                 'NR_PARTIDO': str,
                 'NR_VOTAVEL': str,
                 'CD_CARGO_PERGUNTA': str,
-                'CD_ELEICAO': str
+                'CD_ELEICAO': str,
+                'SG_UE': str,
+                'CD_CARGO': str,
+                'SQ_CANDIDATO': str,
+                'NR_CANDIDATO': str,
+                'NR_CPF_CANDIDATO': str,
+                'NR_TITULO_ELEITORAL_CANDIDATO': str,
+                'NR_FEDERACAO': str,
+                'SQ_COLIGACAO': str
             }
 
             for chunk in pd.read_csv(

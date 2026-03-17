@@ -60,6 +60,26 @@ class MySQLLoader:
             logger.error(f"Error updating file {file_id}: {e}")
 
     def load_df(self, df, table_name, if_exists='append', chunksize=1000):
+        def mysql_on_duplicate_key_update(table, conn, keys, data_iter):
+            from sqlalchemy.dialects.mysql import insert
+            from sqlalchemy import table as sql_table, column as sql_column
+
+            # Create a list of columns to be updated
+            update_cols = {c.name: c for c in table.table.columns if c.name not in table.table.primary_key}
+
+            # Prepare the data
+            data = [dict(zip(keys, row)) for row in data_iter]
+
+            # Construct the insert statement
+            stmt = insert(table.table).values(data)
+            
+            # Add ON DUPLICATE KEY UPDATE clause
+            on_duplicate_key_stmt = stmt.on_duplicate_key_update(
+                {c.name: c for c in stmt.inserted if c.name in update_cols}
+            )
+
+            conn.execute(on_duplicate_key_stmt)
+
         try:
             df.to_sql(
                 table_name, 
@@ -67,7 +87,7 @@ class MySQLLoader:
                 if_exists=if_exists, 
                 index=False, 
                 chunksize=chunksize,
-                method='multi' # More efficient for MySQL
+                method=mysql_on_duplicate_key_update
             )
             logger.info(f"Loaded {len(df)} rows into {table_name}")
         except Exception as e:

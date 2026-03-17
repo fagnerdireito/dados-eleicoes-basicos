@@ -1,0 +1,15 @@
+SET FOREIGN_KEY_CHECKS = 0;
+
+TRUNCATE TABLE votos_secao;
+TRUNCATE TABLE votos_consolidados;
+TRUNCATE TABLE candidatos;
+TRUNCATE TABLE secoes;
+TRUNCATE TABLE zonas;
+TRUNCATE TABLE municipios;
+TRUNCATE TABLE estados;
+TRUNCATE TABLE partidos;
+TRUNCATE TABLE cargos;
+TRUNCATE TABLE eleicoes;
+TRUNCATE TABLE arquivos_processados;
+
+SET FOREIGN_KEY_CHECKS = 1;
