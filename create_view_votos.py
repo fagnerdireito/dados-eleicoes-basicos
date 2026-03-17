@@ -31,6 +31,7 @@ def create_view():
     view_sql = f"""
     CREATE OR REPLACE VIEW {VIEW_NAME} AS
     SELECT
+        bu.id,
         MAX(cc.NM_URNA_CANDIDATO) AS NM_URNA_CANDIDATO,
         bu.NM_VOTAVEL,
         SUM(CAST(bu.QT_VOTOS AS UNSIGNED)) AS total_votos,
