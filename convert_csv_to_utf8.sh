@@ -1,26 +1,24 @@
 #!/bin/bash
 
-# ============================================================
-# Converter CSVs para UTF-8 (in-place)
-# ============================================================
-# Converte CSVs de ISO-8859-1 (Latin1) para UTF-8, sobrescrevendo o original.
-# - dados/consulta_cand_2024, dados/consulta_vagas_2024: CSVs diretos na pasta
-# - bweb: CSVs dentro de subpastas (bweb/bweb_1t_AC_.../bweb_1t_AC_....csv)
-
 set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INPUT_DIRS=(
+  # "$BASE_DIR/dados/teste"
   "$BASE_DIR/dados/consulta_cand_2024"
   "$BASE_DIR/dados/consulta_vagas_2024"
   "$BASE_DIR/bweb"
 )
 
-# Latin1 = ISO-8859-1 (codificação comum dos CSVs do TSE)
 SRC_ENCODING="ISO-8859-1"
 DEST_ENCODING="UTF-8"
 TMP_DIR="/tmp/csv_utf8_convert"
 mkdir -p "$TMP_DIR"
+
+is_utf8() {
+  local f="$1"
+  iconv -f UTF-8 -t UTF-8 "$f" > /dev/null 2>&1
+}
 
 echo "================================================"
 echo "Converter CSVs para UTF-8"
@@ -39,16 +37,24 @@ for DIR in "${INPUT_DIRS[@]}"; do
     continue
   fi
 
-  # CSVs diretos na pasta e (para bweb) CSVs um nível abaixo: pasta/nome/nome.csv
   shopt -s nullglob
   FILES=("$DIR"/*.csv "$DIR"/*/*.csv)
   shopt -u nullglob
 
   for SRC_FILE in "${FILES[@]}"; do
     BASENAME="$(basename "$SRC_FILE")"
-    TMP_FILE="${TMP_DIR}/${BASENAME}"
+
+    if is_utf8 "$SRC_FILE"; then
+      echo "Pulando (já UTF-8): $BASENAME"
+      continue
+    fi
+
     echo "Convertendo: $BASENAME"
+
+    TMP_FILE="$(mktemp "$TMP_DIR/${BASENAME}.XXXXXX")"
+
     iconv -f "$SRC_ENCODING" -t "$DEST_ENCODING" "$SRC_FILE" > "$TMP_FILE"
+
     mv "$TMP_FILE" "$SRC_FILE"
     echo "  ✓ $BASENAME"
   done

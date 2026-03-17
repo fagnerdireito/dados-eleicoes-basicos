@@ -12,3 +12,70 @@ QT_ELEITORES_BIOMETRIA_NH -> QT_ELEI_BIOM_SEM_HABILITACAO
 unifique os nomes dos campos para o mesmo nome de 2024.
 esse script python vai criar uma tabela unica com todos os dados destes boletim de urna.
 o nome da tabela vai ser boletim_urna.
+
+# Regras de Contexto
+- language: python
+- Database: MySQL
+- os arquivos csv sempre estao com codificacao latin1 
+
+### Database Configuration (Development)
+Sempre considere as seguintes variáveis de conexão para operações de banco de dados:
+* **Connection:** `mysql`
+* **Host:** `127.0.0.1` (localhost)
+* **Port:** `3306`
+* **Database:** `eleicoes`
+* **User:** `root`
+* **Password:** (empty)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+agora crie um novo arquivo python isolado para criar uma tabela unificada de todos os csv dentro de bweb.
+o cabecalho deles é 
+2024:
+"DT_GERACAO";"HH_GERACAO";"ANO_ELEICAO";"CD_TIPO_ELEICAO";"NM_TIPO_ELEICAO";"CD_PLEITO";"DT_PLEITO";"NR_TURNO";"CD_ELEICAO";"DS_ELEICAO";"SG_UF";"CD_MUNICIPIO";"NM_MUNICIPIO";"NR_ZONA";"NR_SECAO";"NR_LOCAL_VOTACAO";"CD_CARGO_PERGUNTA";"DS_CARGO_PERGUNTA";"NR_PARTIDO";"SG_PARTIDO";"NM_PARTIDO";"DT_BU_RECEBIDO";"QT_APTOS";"QT_COMPARECIMENTO";"QT_ABSTENCOES";"CD_TIPO_URNA";"DS_TIPO_URNA";"CD_TIPO_VOTAVEL";"DS_TIPO_VOTAVEL";"NR_VOTAVEL";"NM_VOTAVEL";"QT_VOTOS";"NR_URNA_EFETIVADA";"CD_CARGA_1_URNA_EFETIVADA";"CD_CARGA_2_URNA_EFETIVADA";"CD_FLASHCARD_URNA_EFETIVADA";"DT_CARGA_URNA_EFETIVADA";"DS_CARGO_PERGUNTA_SECAO";"DS_SECOES_AGREGADAS";"DT_ABERTURA";"DT_ENCERRAMENTO";"QT_ELEI_BIOM_SEM_HABILITACAO";"DT_EMISSAO_BU";"NR_JUNTA_APURADORA";"NR_TURMA_APURADORA".
+2022:
+"DT_GERACAO";"HH_GERACAO";"ANO_ELEICAO";"CD_TIPO_ELEICAO";"NM_TIPO_ELEICAO";"CD_PLEITO";"DT_PLEITO";"NR_TURNO";"CD_ELEICAO";"DS_ELEICAO";"SG_UF";"CD_MUNICIPIO";"NM_MUNICIPIO";"NR_ZONA";"NR_SECAO";"NR_LOCAL_VOTACAO";"CD_CARGO_PERGUNTA";"DS_CARGO_PERGUNTA";"NR_PARTIDO";"SG_PARTIDO";"NM_PARTIDO";"DT_BU_RECEBIDO";"QT_APTOS";"QT_COMPARECIMENTO";"QT_ABSTENCOES";"CD_TIPO_URNA";"DS_TIPO_URNA";"CD_TIPO_VOTAVEL";"DS_TIPO_VOTAVEL";"NR_VOTAVEL";"NM_VOTAVEL";"QT_VOTOS";"NR_URNA_EFETIVADA";"CD_CARGA_1_URNA_EFETIVADA";"CD_CARGA_2_URNA_EFETIVADA";"CD_FLASHCARD_URNA_EFETIVADA";"DT_CARGA_URNA_EFETIVADA";"DS_CARGO_PERGUNTA_SECAO";"DS_AGREGADAS";"DT_ABERTURA";"DT_ENCERRAMENTO";"QT_ELEITORES_BIOMETRIA_NH";"DT_EMISSAO_BU";"NR_JUNTA_APURADORA";"NR_TURMA_APURADORA"
+
+Tem 2 campos com nomes diferentes entre 2022 e 2024:
+aqui esta o de para.
+DS_AGREGADAS -> DS_SECOES_AGREGADAS
+QT_ELEITORES_BIOMETRIA_NH -> QT_ELEI_BIOM_SEM_HABILITACAO
+unifique os nomes dos campos para o mesmo nome de 2024.
+esse script python vai criar uma tabela unica com todos os dados destes boletim de urna.
+o nome da tabela vai ser boletim_urna.
+
+# Regras de Contexto
+- language: python
+- Database: MySQL
+- os arquivos csv sempre estao com codificacao latin1 
+
+### Database Configuration (Development)
+Sempre considere as seguintes variáveis de conexão para operações de banco de dados:
+* **Connection:** `mysql`
+* **Host:** `127.0.0.1` (localhost)
+* **Port:** `3306`
+* **Database:** `eleicoes`
+* **User:** `root`
+* **Password:** (empty)
+
+
+
+
+
+
+
+
+
+
+
