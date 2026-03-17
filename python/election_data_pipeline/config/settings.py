@@ -28,6 +28,8 @@ class Settings:
 
     @property
     def DATABASE_URL(self):
-        return f"{self.DB_CONNECTION}+mysqlconnector://{self.DB_USERNAME}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
+        from urllib.parse import quote_plus
+        pwd = quote_plus(self.DB_PASSWORD) if self.DB_PASSWORD else ''
+        return f"{self.DB_CONNECTION}+mysqlconnector://{self.DB_USERNAME}:{pwd}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
 
 settings = Settings()

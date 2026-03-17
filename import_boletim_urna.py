@@ -39,9 +39,12 @@ CHUNKSIZE_INSERT = 2_000
 _print_lock = threading.Lock()
 
 
+from urllib.parse import quote_plus
+
 def get_engine(pool_size=None):
     """Retorna o engine do SQLAlchemy usando mysql-connector-python."""
-    conn_str = f"mysql+mysqlconnector://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+    pwd = quote_plus(DB_CONFIG['password']) if DB_CONFIG['password'] else ''
+    conn_str = f"mysql+mysqlconnector://{DB_CONFIG['user']}:{pwd}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
     kwargs = {}
     if pool_size is not None:
         kwargs["pool_size"] = pool_size

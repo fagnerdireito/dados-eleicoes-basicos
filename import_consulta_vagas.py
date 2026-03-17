@@ -41,10 +41,13 @@ MAX_INSERT_RETRIES = 10
 
 _print_lock = threading.Lock()
 
+from urllib.parse import quote_plus
+
 def get_engine(pool_size=None):
     """Retorna o engine do SQLAlchemy usando mysql-connector-python."""
+    pwd = quote_plus(DB_CONFIG['password']) if DB_CONFIG['password'] else ''
     conn_str = (
-        f"mysql+mysqlconnector://{DB_CONFIG['user']}:{DB_CONFIG['password']}"
+        f"mysql+mysqlconnector://{DB_CONFIG['user']}:{pwd}"
         f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
     )
     kwargs = {}

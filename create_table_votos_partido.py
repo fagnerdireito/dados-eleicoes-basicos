@@ -23,10 +23,13 @@ DB_CONFIG = {
 TABLE_NAME = 'votos_partido'
 
 
+from urllib.parse import quote_plus
+
 def get_engine():
     """Retorna o engine do SQLAlchemy."""
+    pwd = quote_plus(DB_CONFIG['password']) if DB_CONFIG['password'] else ''
     conn_str = (
-        f"mysql+mysqlconnector://{DB_CONFIG['user']}:{DB_CONFIG['password']}"
+        f"mysql+mysqlconnector://{DB_CONFIG['user']}:{pwd}"
         f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
     )
     return create_engine(conn_str)

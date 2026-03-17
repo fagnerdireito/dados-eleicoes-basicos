@@ -4,21 +4,28 @@ Utiliza as tabelas 'boletim_urna' e 'consulta_cand'.
 """
 from sqlalchemy import create_engine, text
 
+import os
+from dotenv import load_dotenv
+from urllib.parse import quote_plus
+
+load_dotenv()
+
 # Configuração do Banco de Dados
 DB_CONFIG = {
-    'host': '127.0.0.1',
-    'port': '3306',
-    'database': 'eleicoes',
-    'user': 'root',
-    'password': ''
+    'host': os.getenv('DB_HOST', '127.0.0.1'),
+    'port': os.getenv('DB_PORT', '3306'),
+    'database': os.getenv('DB_DATABASE', 'eleicoes'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', '')
 }
 
 VIEW_NAME = 'view_votos_candidatos_municipio'
 
 def get_engine():
     """Retorna o engine do SQLAlchemy."""
+    pwd = quote_plus(DB_CONFIG['password']) if DB_CONFIG['password'] else ''
     conn_str = (
-        f"mysql+mysqlconnector://{DB_CONFIG['user']}:{DB_CONFIG['password']}"
+        f"mysql+mysqlconnector://{DB_CONFIG['user']}:{pwd}"
         f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
     )
     return create_engine(conn_str)
