@@ -28,13 +28,17 @@ def _debug_log(message, data, hypothesis_id, location=""):
         pass
 # #endregion
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Configuração do Banco de Dados (desenvolvimento - .env)
 DB_CONFIG = {
-    'host': '127.0.0.1',
-    'port': '3306',
-    'database': 'eleicoes',
-    'user': 'root',
-    'password': ''
+    'host': os.getenv('DB_HOST', '127.0.0.1'),
+    'port': os.getenv('DB_PORT', '3306'),
+    'database': os.getenv('DB_DATABASE', 'eleicoes'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', '')
 }
 
 # Colunas que definem a unicidade do registro (evita duplicidade)

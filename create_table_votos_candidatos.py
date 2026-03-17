@@ -5,14 +5,19 @@ por município, por turno e por ano, com base nas tabelas 'boletim_urna' e 'cons
 Tabela criada: votos_candidatos
 """
 from sqlalchemy import create_engine, text
+import os
+from dotenv import load_dotenv
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
 
 # Configuração do Banco de Dados
 DB_CONFIG = {
-    'host': '127.0.0.1',
-    'port': '3306',
-    'database': 'eleicoes',
-    'user': 'root',
-    'password': ''
+    'host': os.getenv('DB_HOST', '127.0.0.1'),
+    'port': os.getenv('DB_PORT', '3306'),
+    'database': os.getenv('DB_DATABASE', 'eleicoes'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', '')
 }
 
 TABLE_NAME = 'votos_candidatos'

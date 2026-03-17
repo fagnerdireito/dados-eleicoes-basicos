@@ -11,14 +11,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 from sqlalchemy import create_engine, text, types
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configuração do Banco de Dados
 DB_CONFIG = {
-    'host': '127.0.0.1',
-    'port': '3306',
-    'database': 'eleicoes',
-    'user': 'root',
-    'password': ''
+    'host': os.getenv('DB_HOST', '127.0.0.1'),
+    'port': os.getenv('DB_PORT', '3306'),
+    'database': os.getenv('DB_DATABASE', 'eleicoes'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', '')
 }
 
 # Colunas que definem a unicidade do registro (evita duplicidade)
