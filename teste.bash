@@ -149,3 +149,54 @@ ORDER BY
     total_votos DESC
 
 - mas agora implemente em formato mysql.
+
+
+
+
+
+
+
+
+
+
+
+SELECT
+        MAX(cc.NM_URNA_CANDIDATO) AS NM_URNA_CANDIDATO,
+        bu.NM_VOTAVEL,
+        SUM(CAST(bu.QT_VOTOS AS UNSIGNED)) AS total_votos,
+        bu.ANO_ELEICAO,
+        bu.NM_MUNICIPIO,
+        bu.CD_MUNICIPIO,
+        bu.CD_ELEICAO,
+        bu.NR_TURNO,
+        bu.SG_UF,
+        MAX(bu.DS_CARGO_PERGUNTA) AS DS_CARGO_PERGUNTA,
+        MAX(cc.SG_PARTIDO) AS SG_PARTIDO,
+        MAX(cc.DS_SIT_TOT_TURNO) AS SITUACAO_ELEICAO
+    FROM
+        boletim_urna AS bu
+    LEFT JOIN
+        consulta_cand AS cc
+        ON bu.ANO_ELEICAO = cc.ANO_ELEICAO
+        AND bu.NR_VOTAVEL = cc.NR_CANDIDATO
+        AND bu.SG_UF = cc.SG_UF
+        AND bu.CD_CARGO_PERGUNTA = cc.CD_CARGO
+        AND bu.CD_MUNICIPIO = cc.SG_UE
+    GROUP BY
+        bu.ANO_ELEICAO,
+        bu.CD_MUNICIPIO,
+        bu.NM_MUNICIPIO,
+        bu.CD_ELEICAO,
+        bu.NR_TURNO,
+        bu.SG_UF,
+        bu.NR_VOTAVEL
+    ORDER BY
+        total_votos DESC;
+
+
+
+
+
+SELECT NR_VOTAVEL,NM_VOTAVEL, SUM(QT_VOTOS) as votos FROM boletim_urna WHERE NM_VOTAVEL='LISSAUER VIEIRA' GROUP BY NR_VOTAVEL;
+
+

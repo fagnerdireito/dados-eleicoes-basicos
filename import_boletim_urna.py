@@ -28,9 +28,9 @@ KEY_COLUMNS = ['CD_PLEITO', 'CD_MUNICIPIO', 'NR_ZONA', 'NR_SECAO', 'CD_CARGO_PER
 TABLE_NAME = 'boletim_urna'
 
 # Multithread: um arquivo por thread (sem overlap); duplicidade evitada por índice único + INSERT IGNORE
-MAX_WORKERS = 8
-CHUNKSIZE_READ = 50_000
-CHUNKSIZE_INSERT = 5_000
+MAX_WORKERS = 2
+CHUNKSIZE_READ = 10_000
+CHUNKSIZE_INSERT = 2_000
 
 _print_lock = threading.Lock()
 
