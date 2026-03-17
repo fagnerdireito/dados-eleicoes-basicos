@@ -68,7 +68,7 @@ def insert_ignore(table, conn, keys, data_iter):
     conn.execute(stmt)
 
 def setup_table_and_indexes(engine, df_sample):
-    """Cria a tabela com tipos VARCHAR e adiciona o índice único."""
+    """Cria a tabela com tipos VARCHAR, adiciona chave primária e índice único."""
     dtype_map = {}
     for col in df_sample.columns:
         if col in KEY_COLUMNS:
@@ -85,6 +85,27 @@ def setup_table_and_indexes(engine, df_sample):
             index=False,
             dtype=dtype_map
         )
+
+    # Garante coluna de chave primária auto incremental
+    pk_sql = f"""
+    ALTER TABLE {TABLE_NAME}
+    ADD COLUMN id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+    """
+    with engine.begin() as conn:
+        try:
+            conn.execute(text(pk_sql))
+            print("Chave primária (id) criada com sucesso em consulta_vagas.")
+        except Exception as e:
+            # 1060: Duplicate column name, 1068: Multiple primary key defined
+            if (
+                "1060" in str(e)
+                or "Duplicate column name" in str(e)
+                or "1068" in str(e)
+                or "Multiple primary key" in str(e)
+            ):
+                print("Chave primária (id) em consulta_vagas já existe ou já há uma PRIMARY KEY.")
+            else:
+                print(f"Erro ao criar chave primária em {TABLE_NAME}: {e}")
 
     idx_sql = f"""
     ALTER TABLE {TABLE_NAME}

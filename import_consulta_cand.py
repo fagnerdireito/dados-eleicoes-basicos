@@ -110,6 +110,21 @@ def setup_table_and_indexes(engine, df_sample):
             dtype=dtype_map
         )
 
+    # Chave primária id (adiciona só se a coluna ainda não existir)
+    id_sql = f"""
+    ALTER TABLE {TABLE_NAME}
+    ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+    """
+    with engine.begin() as conn:
+        try:
+            conn.execute(text(id_sql))
+            print("Coluna 'id' (PK) criada na tabela consulta_cand.")
+        except Exception as e:
+            if '1060' in str(e) or 'Duplicate column name' in str(e):
+                print("Coluna 'id' (PK) já existe.")
+            else:
+                print(f"Erro ao adicionar coluna id: {e}")
+
     idx_sql = f"""
     ALTER TABLE {TABLE_NAME}
     ADD UNIQUE INDEX idx_unique_consulta_cand
