@@ -203,3 +203,19 @@ SELECT NR_VOTAVEL,NM_VOTAVEL, SUM(QT_VOTOS) as votos FROM boletim_urna WHERE NM_
 
 
 ALTER TABLE boletim_urna ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+
+
+
+
+
+
+
+
+
+
+crie um .sh bash file script para executar em sequencia estes arquivos.
+python import_boletim_urna.py
+python import_consulta_cand.py
+python import_consulta_vagas.py
+python create_table_votos_candidatos.py
+python create_table_votos_partido.py
