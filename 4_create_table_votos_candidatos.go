@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 
@@ -36,9 +37,10 @@ func main() {
 	}
 
 	// READ COMMITTED reduces locking pressure for INSERT ... SELECT on large municipalities.
+	isolationLevel := url.QueryEscape("'READ-COMMITTED'")
 	dsn := fmt.Sprintf(
-		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&transaction_isolation=%27READ-COMMITTED%27",
-		config.User, config.Password, config.Host, config.Port, config.Database,
+		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&transaction_isolation=%s",
+		config.User, config.Password, config.Host, config.Port, config.Database, isolationLevel,
 	)
 
 	db, err := sql.Open("mysql", dsn)
