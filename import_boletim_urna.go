@@ -90,8 +90,8 @@ const (
 	csvSeparator = ';'
 	// MySQL suporta no máximo 65.535 placeholders por statement.
 	mysqlMaxPlaceholders = 65_535
-	// Usaremos um batchSize menor para reduzir colisões de travas (Gap Locks)
-	defaultBatchSize = 500
+	// Usaremos um batchSize equilibrado para performance e redução de deadlocks
+	defaultBatchSize = 1000
 )
 
 // printMu garante saída sem mistura entre goroutines
