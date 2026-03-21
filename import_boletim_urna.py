@@ -4,7 +4,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
-from sqlalchemy import create_engine, text, types
+from sqlalchemy import create_engine, text
 
 from dotenv import load_dotenv
 
@@ -29,7 +29,56 @@ COLUMN_MAPPING = {
 # Colunas que definem a unicidade do Boletim de Urna
 KEY_COLUMNS = ['CD_PLEITO', 'CD_MUNICIPIO', 'NR_ZONA', 'NR_SECAO', 'CD_CARGO_PERGUNTA', 'NR_VOTAVEL']
 
-TABLE_NAME = 'boletim_urna'
+TABLE_NAME = 'boletim_de_urna'
+
+# Tamanhos VARCHAR conforme layout oficial / tabela alvo
+BU_COLUMN_LENGTHS = [
+    ('DT_GERACAO', 10),
+    ('HH_GERACAO', 8),
+    ('ANO_ELEICAO', 4),
+    ('CD_TIPO_ELEICAO', 1),
+    ('NM_TIPO_ELEICAO', 17),
+    ('CD_PLEITO', 3),
+    ('DT_PLEITO', 19),
+    ('NR_TURNO', 1),
+    ('CD_ELEICAO', 3),
+    ('DS_ELEICAO', 30),
+    ('SG_UF', 2),
+    ('CD_MUNICIPIO', 5),
+    ('NM_MUNICIPIO', 22),
+    ('NR_ZONA', 3),
+    ('NR_SECAO', 3),
+    ('NR_LOCAL_VOTACAO', 4),
+    ('CD_CARGO_PERGUNTA', 2),
+    ('DS_CARGO_PERGUNTA', 17),
+    ('NR_PARTIDO', 2),
+    ('SG_PARTIDO', 13),
+    ('NM_PARTIDO', 46),
+    ('DT_BU_RECEBIDO', 19),
+    ('QT_APTOS', 3),
+    ('QT_COMPARECIMENTO', 3),
+    ('QT_ABSTENCOES', 3),
+    ('CD_TIPO_URNA', 1),
+    ('DS_TIPO_URNA', 7),
+    ('CD_TIPO_VOTAVEL', 1),
+    ('DS_TIPO_VOTAVEL', 7),
+    ('NR_VOTAVEL', 5),
+    ('NM_VOTAVEL', 28),
+    ('QT_VOTOS', 3),
+    ('NR_URNA_EFETIVADA', 7),
+    ('CD_CARGA_1_URNA_EFETIVADA', 24),
+    ('CD_CARGA_2_URNA_EFETIVADA', 7),
+    ('CD_FLASHCARD_URNA_EFETIVADA', 8),
+    ('DT_CARGA_URNA_EFETIVADA', 19),
+    ('DS_CARGO_PERGUNTA_SECAO', 8),
+    ('DS_SECOES_AGREGADAS', 15),
+    ('DT_ABERTURA', 19),
+    ('DT_ENCERRAMENTO', 19),
+    ('QT_ELEI_BIOM_SEM_HABILITACAO', 2),
+    ('DT_EMISSAO_BU', 19),
+    ('NR_JUNTA_APURADORA', 2),
+    ('NR_TURMA_APURADORA', 2),
+]
 
 # Multithread: um arquivo por thread (sem overlap); duplicidade evitada por índice único + INSERT IGNORE
 MAX_WORKERS = 2
@@ -70,35 +119,35 @@ def insert_ignore(table, conn, keys, data_iter):
     stmt = stmt.prefix_with('IGNORE')
     conn.execute(stmt)
 
-def setup_table_and_indexes(engine, df_sample):
-    """Cria a tabela com tipos VARCHAR otimizados e adiciona o índice único."""
-    # 1. Define tipos VARCHAR otimizados para evitar erro 'Specified key was too long'
-    # Colunas de índice: VARCHAR(50) (6 x 50 x 4 bytes < 3072 limit)
-    # Outras colunas: VARCHAR(255)
-    dtype_map = {}
-    for col in df_sample.columns:
-        if col in KEY_COLUMNS:
-            dtype_map[col] = types.VARCHAR(50)
-        else:
-            dtype_map[col] = types.VARCHAR(255)
-    
-    # 2. Cria a estrutura da tabela apenas se não existir
+def build_create_table_sql():
+    """DDL com id AUTO_INCREMENT, VARCHARs oficiais e UNIQUE em chave natural."""
+    cols = ['`id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT']
+    for name, length in BU_COLUMN_LENGTHS:
+        cols.append(f'`{name}` VARCHAR({length}) DEFAULT NULL')
+    cols.append('PRIMARY KEY (`id`)')
+    cols.append(
+        'UNIQUE KEY `idx_unique_bu` '
+        '(`CD_PLEITO`,`CD_MUNICIPIO`,`NR_ZONA`,`NR_SECAO`,`CD_CARGO_PERGUNTA`,`NR_VOTAVEL`)'
+    )
+    body = ',\n  '.join(cols)
+    return (
+        f'CREATE TABLE IF NOT EXISTS `{TABLE_NAME}` (\n  {body}\n) '
+        'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci'
+    )
+
+
+def setup_table_and_indexes(engine):
+    """Cria a tabela com id e VARCHARs fixos; garante índice único na chave natural."""
     with engine.begin() as conn:
-        df_sample.head(0).to_sql(
-            name=TABLE_NAME,
-            con=conn,
-            if_exists='append',
-            index=False,
-            dtype=dtype_map
-        )
-    
-    # 3. Adiciona o UNIQUE INDEX
+        conn.execute(text(build_create_table_sql()))
+        print(f"Tabela `{TABLE_NAME}` verificada/criada (com coluna `id`).")
+
     idx_sql = f"""
-    ALTER TABLE {TABLE_NAME}
+    ALTER TABLE `{TABLE_NAME}`
     ADD UNIQUE INDEX idx_unique_bu
-    ({', '.join(KEY_COLUMNS)});
+    ({', '.join(f'`{c}`' for c in KEY_COLUMNS)});
     """
-    
+
     with engine.begin() as conn:
         try:
             conn.execute(text(idx_sql))
@@ -155,20 +204,7 @@ def process_and_import():
 
     print(f"Encontrados {len(csv_files)} arquivo(s) CSV. Usando {n_workers} thread(s).")
 
-    # Thread principal: cria tabela e índice uma vez (usa primeiro chunk do primeiro arquivo)
-    first_file = csv_files[0]
-    first_chunk = next(
-        pd.read_csv(
-            first_file,
-            sep=';',
-            encoding='latin1',
-            quotechar='"',
-            dtype=str,
-            chunksize=CHUNKSIZE_READ
-        ).__iter__()
-    )
-    first_chunk = clean_column_names(first_chunk)
-    setup_table_and_indexes(engine, first_chunk)
+    setup_table_and_indexes(engine)
 
     # Workers: cada um processa um arquivo
     errors = []
