@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
@@ -88,8 +89,9 @@ const (
 	maxWorkers   = 4
 	csvSeparator = ';'
 	// MySQL suporta no máximo 65.535 placeholders por statement.
-	// O tamanho do lote é calculado em runtime com base no número de colunas.
 	mysqlMaxPlaceholders = 65_535
+	// Usaremos um batchSize menor para reduzir colisões de travas (Gap Locks)
+	defaultBatchSize = 500
 )
 
 // printMu garante saída sem mistura entre goroutines
@@ -141,7 +143,6 @@ func main() {
 		log.Fatalf("Erro ao configurar tabela: %v", err)
 	}
 
-	// filepath.Glob não suporta ** recursivo em Go; usamos WalkDir
 	files, err := findCSVFiles("bweb")
 	if err != nil {
 		log.Fatalf("Erro ao buscar arquivos CSV: %v", err)
@@ -155,14 +156,12 @@ func main() {
 	sort.Strings(files)
 	fmt.Printf("Encontrados %d arquivo(s) CSV. Usando %d goroutine(s).\n", len(files), maxWorkers)
 
-	// Canal de jobs com buffer do total de arquivos (sem bloqueio ao enviar)
 	jobs := make(chan string, len(files))
 	for _, f := range files {
 		jobs <- f
 	}
-	close(jobs) // fecha após enviar todos; workers drenam sem deadlock
+	close(jobs)
 
-	// Canal de resultados com buffer suficiente para todos os arquivos
 	results := make(chan fileResult, len(files))
 
 	var wg sync.WaitGroup
@@ -177,13 +176,11 @@ func main() {
 		}()
 	}
 
-	// Fecha o canal de resultados quando todos os workers terminarem
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
-	// Coleta resultados sem bloquear (canal fechado pelo goroutine acima)
 	var erros []fileResult
 	for r := range results {
 		if r.err != nil {
@@ -199,7 +196,6 @@ func main() {
 	}
 }
 
-// findCSVFiles percorre recursivamente o diretório e retorna arquivos .csv
 func findCSVFiles(root string) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -241,7 +237,6 @@ func setupTable(db *sql.DB) error {
 	}
 	fmt.Printf("Tabela `%s` verificada/criada.\n", tableName)
 
-	// Tenta adicionar o índice; ignora se já existir (erro 1061)
 	idxQuery := fmt.Sprintf(
 		"ALTER TABLE `%s` ADD UNIQUE INDEX idx_unique_bu (%s)",
 		tableName, strings.Join(quoteColumns(keyColumns), ", "),
@@ -276,13 +271,11 @@ func processFile(db *sql.DB, path string) error {
 	}
 	defer f.Close()
 
-	// Decodifica latin1 (ISO-8859-1) para UTF-8 em stream
 	reader := csv.NewReader(charmap.ISO8859_1.NewDecoder().Reader(f))
 	reader.Comma = csvSeparator
 	reader.LazyQuotes = true
 	reader.TrimLeadingSpace = true
 
-	// Lê o cabeçalho e normaliza os nomes das colunas
 	rawHeader, err := reader.Read()
 	if err != nil {
 		return fmt.Errorf("ler cabeçalho: %w", err)
@@ -297,16 +290,15 @@ func processFile(db *sql.DB, path string) error {
 		colIndexes[name] = i
 	}
 
-	// Lista de colunas alvo (na ordem da tabela)
 	targetCols := make([]string, len(buColumnLengths))
 	for i, col := range buColumnLengths {
 		targetCols[i] = col[0]
 	}
 
-	// Calcula o máximo de linhas por lote respeitando o limite de 65.535 placeholders do MySQL
-	batchSize := mysqlMaxPlaceholders / len(targetCols)
-	if batchSize < 1 {
-		batchSize = 1
+	batchSize := defaultBatchSize
+	maxByPlaceholders := mysqlMaxPlaceholders / len(targetCols)
+	if batchSize > maxByPlaceholders {
+		batchSize = maxByPlaceholders
 	}
 
 	baseQuery := fmt.Sprintf("INSERT IGNORE INTO `%s` (%s) VALUES ",
@@ -332,7 +324,6 @@ func processFile(db *sql.DB, path string) error {
 			break
 		}
 		if err != nil {
-			// Linha malformada: loga e continua
 			safePrintf("Aviso CSV em %s: %v\n", path, err)
 			continue
 		}
@@ -347,7 +338,6 @@ func processFile(db *sql.DB, path string) error {
 					row[i] = v
 				}
 			}
-			// se coluna ausente, row[i] permanece nil
 		}
 		batch = append(batch, row)
 
@@ -358,7 +348,6 @@ func processFile(db *sql.DB, path string) error {
 		}
 	}
 
-	// Flush do lote restante
 	if err := flush(); err != nil {
 		return fmt.Errorf("inserir lote final: %w", err)
 	}
@@ -383,6 +372,19 @@ func executeBatch(db *sql.DB, baseQuery, placeholder string, batch [][]interface
 		args = append(args, row...)
 	}
 
-	_, err := db.Exec(query, args...)
-	return err
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		_, err := db.Exec(query, args...)
+		if err == nil {
+			return nil
+		}
+
+		// Erro 1213 = Deadlock. Se for deadlock, espera um pouco e tenta de novo.
+		if strings.Contains(err.Error(), "1213") || strings.Contains(err.Error(), "Deadlock") {
+			time.Sleep(time.Duration(i+1) * 100 * time.Millisecond) // Backoff simples
+			continue
+		}
+		return err
+	}
+	return fmt.Errorf("falha após %d tentativas devido a deadlocks", maxRetries)
 }
