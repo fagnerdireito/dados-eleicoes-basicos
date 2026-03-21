@@ -67,9 +67,17 @@ func main() {
 	fmt.Printf("Anos encontrados: %v\n", anos)
 
 	for _, ano := range anos {
-		if err := partidoInsertForYear(db, ano); err != nil {
-			log.Fatalf("Erro ao inserir dados do ano %s: %v", ano, err)
+		ufs, err := partidoGetUFs(db, ano)
+		if err != nil {
+			log.Fatalf("Erro ao buscar UFs do ano %s: %v", ano, err)
 		}
+		fmt.Printf("Ano %s: %d UF(s) encontrada(s).\n", ano, len(ufs))
+		for _, uf := range ufs {
+			if err := partidoInsertForYearUF(db, ano, uf); err != nil {
+				log.Fatalf("Erro ao inserir dados do ano %s UF %s: %v", ano, uf, err)
+			}
+		}
+		fmt.Printf("Ano %s concluído.\n", ano)
 	}
 
 	if err := partidoCreateTargetIndexes(db); err != nil {
@@ -164,8 +172,31 @@ func partidoGetAnos(db *sql.DB) ([]string, error) {
 	return anos, rows.Err()
 }
 
-func partidoInsertForYear(db *sql.DB, ano string) error {
-	fmt.Printf("Inserindo dados do ano %s...\n", ano)
+func partidoGetUFs(db *sql.DB, ano string) ([]string, error) {
+	rows, err := db.Query(`
+		SELECT DISTINCT SG_UF
+		FROM boletim_de_urna
+		WHERE ANO_ELEICAO = ? AND SG_UF IS NOT NULL
+		ORDER BY SG_UF
+	`, ano)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ufs []string
+	for rows.Next() {
+		var uf string
+		if err := rows.Scan(&uf); err != nil {
+			return nil, err
+		}
+		ufs = append(ufs, uf)
+	}
+	return ufs, rows.Err()
+}
+
+func partidoInsertForYearUF(db *sql.DB, ano, uf string) error {
+	fmt.Printf("  Inserindo ano %s UF %s...\n", ano, uf)
 
 	insertSQL := fmt.Sprintf(`
 		INSERT INTO %s (
@@ -196,7 +227,7 @@ func partidoInsertForYear(db *sql.DB, ano string) error {
 			MAX(bu.DS_CARGO_PERGUNTA) AS DS_CARGO_PERGUNTA,
 			bu.CD_CARGO_PERGUNTA
 		FROM boletim_de_urna AS bu
-		WHERE bu.ANO_ELEICAO = ?
+		WHERE bu.ANO_ELEICAO = ? AND bu.SG_UF = ?
 		GROUP BY
 			bu.ANO_ELEICAO,
 			bu.CD_MUNICIPIO,
@@ -210,12 +241,10 @@ func partidoInsertForYear(db *sql.DB, ano string) error {
 			bu.NM_PARTIDO
 	`, partidoTableName)
 
-	_, err := db.Exec(insertSQL, ano)
+	_, err := db.Exec(insertSQL, ano, uf)
 	if err != nil {
-		return fmt.Errorf("insert ano %s: %w", ano, err)
+		return fmt.Errorf("insert ano %s UF %s: %w", ano, uf, err)
 	}
-
-	fmt.Printf("Ano %s concluído.\n", ano)
 	return nil
 }
 
