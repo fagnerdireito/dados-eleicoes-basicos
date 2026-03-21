@@ -35,8 +35,11 @@ func main() {
 		Password: votosGetEnv("DB_PASSWORD", ""),
 	}
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		config.User, config.Password, config.Host, config.Port, config.Database)
+	// READ COMMITTED reduces locking pressure for INSERT ... SELECT on large municipalities.
+	dsn := fmt.Sprintf(
+		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&transaction_isolation=%27READ-COMMITTED%27",
+		config.User, config.Password, config.Host, config.Port, config.Database,
+	)
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
