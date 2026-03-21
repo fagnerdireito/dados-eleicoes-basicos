@@ -67,17 +67,20 @@ func main() {
 	fmt.Printf("Anos encontrados: %v\n", anos)
 
 	for _, ano := range anos {
-		ufs, err := partidoGetUFs(db, ano)
+		municipios, err := partidoGetMunicipios(db, ano)
 		if err != nil {
-			log.Fatalf("Erro ao buscar UFs do ano %s: %v", ano, err)
+			log.Fatalf("Erro ao buscar municípios do ano %s: %v", ano, err)
 		}
-		fmt.Printf("Ano %s: %d UF(s) encontrada(s).\n", ano, len(ufs))
-		for _, uf := range ufs {
-			if err := partidoInsertForYearUF(db, ano, uf); err != nil {
-				log.Fatalf("Erro ao inserir dados do ano %s UF %s: %v", ano, uf, err)
+		fmt.Printf("Ano %s: %d município(s) encontrado(s).\n", ano, len(municipios))
+		for i, mun := range municipios {
+			if err := partidoInsertForYearMunicipio(db, ano, mun); err != nil {
+				log.Fatalf("Erro ao inserir dados do ano %s município %s: %v", ano, mun, err)
+			}
+			if (i+1)%100 == 0 {
+				fmt.Printf("  Ano %s: %d/%d municípios processados.\n", ano, i+1, len(municipios))
 			}
 		}
-		fmt.Printf("Ano %s concluído.\n", ano)
+		fmt.Printf("Ano %s concluído (%d municípios).\n", ano, len(municipios))
 	}
 
 	if err := partidoCreateTargetIndexes(db); err != nil {
@@ -172,32 +175,30 @@ func partidoGetAnos(db *sql.DB) ([]string, error) {
 	return anos, rows.Err()
 }
 
-func partidoGetUFs(db *sql.DB, ano string) ([]string, error) {
+func partidoGetMunicipios(db *sql.DB, ano string) ([]string, error) {
 	rows, err := db.Query(`
-		SELECT DISTINCT SG_UF
+		SELECT DISTINCT CD_MUNICIPIO
 		FROM boletim_de_urna
-		WHERE ANO_ELEICAO = ? AND SG_UF IS NOT NULL
-		ORDER BY SG_UF
+		WHERE ANO_ELEICAO = ? AND CD_MUNICIPIO IS NOT NULL
+		ORDER BY CD_MUNICIPIO
 	`, ano)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var ufs []string
+	var municipios []string
 	for rows.Next() {
-		var uf string
-		if err := rows.Scan(&uf); err != nil {
+		var mun string
+		if err := rows.Scan(&mun); err != nil {
 			return nil, err
 		}
-		ufs = append(ufs, uf)
+		municipios = append(municipios, mun)
 	}
-	return ufs, rows.Err()
+	return municipios, rows.Err()
 }
 
-func partidoInsertForYearUF(db *sql.DB, ano, uf string) error {
-	fmt.Printf("  Inserindo ano %s UF %s...\n", ano, uf)
-
+func partidoInsertForYearMunicipio(db *sql.DB, ano, municipio string) error {
 	insertSQL := fmt.Sprintf(`
 		INSERT INTO %s (
 			NR_PARTIDO,
@@ -227,7 +228,7 @@ func partidoInsertForYearUF(db *sql.DB, ano, uf string) error {
 			MAX(bu.DS_CARGO_PERGUNTA) AS DS_CARGO_PERGUNTA,
 			bu.CD_CARGO_PERGUNTA
 		FROM boletim_de_urna AS bu
-		WHERE bu.ANO_ELEICAO = ? AND bu.SG_UF = ?
+		WHERE bu.ANO_ELEICAO = ? AND bu.CD_MUNICIPIO = ?
 		GROUP BY
 			bu.ANO_ELEICAO,
 			bu.CD_MUNICIPIO,
@@ -241,9 +242,9 @@ func partidoInsertForYearUF(db *sql.DB, ano, uf string) error {
 			bu.NM_PARTIDO
 	`, partidoTableName)
 
-	_, err := db.Exec(insertSQL, ano, uf)
+	_, err := db.Exec(insertSQL, ano, municipio)
 	if err != nil {
-		return fmt.Errorf("insert ano %s UF %s: %w", ano, uf, err)
+		return fmt.Errorf("insert ano %s município %s: %w", ano, municipio, err)
 	}
 	return nil
 }
