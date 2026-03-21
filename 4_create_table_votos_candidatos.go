@@ -4,283 +4,156 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
 
-// Config holds DB configuration
-type Config struct {
-	Host     string
-	Port     string
-	Database string
-	User     string
-	Password string
-}
-
-const votosTableName = "votos_candidatos"
-
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("Arquivo .env não encontrado, usando variáveis de ambiente do sistema.")
-	}
+	godotenv.Load()
 
-	config := Config{
-		Host:     votosGetEnv("DB_HOST", "127.0.0.1"),
-		Port:     votosGetEnv("DB_PORT", "3306"),
-		Database: votosGetEnv("DB_DATABASE", "eleicoes"),
-		User:     votosGetEnv("DB_USER", votosGetEnv("DB_USERNAME", "root")),
-		Password: votosGetEnv("DB_PASSWORD", ""),
-	}
+	// Configuração de conexão
+	user := getEnv("DB_USER", "root")
+	pass := getEnv("DB_PASSWORD", "")
+	host := getEnv("DB_HOST", "127.0.0.1")
+	port := getEnv("DB_PORT", "3306")
+	dbname := getEnv("DB_DATABASE", "eleicoes")
 
-	// READ COMMITTED reduces locking pressure for INSERT ... SELECT on large municipalities.
-	isolationLevel := url.QueryEscape("'READ-COMMITTED'")
-	dsn := fmt.Sprintf(
-		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&transaction_isolation=%s",
-		config.User, config.Password, config.Host, config.Port, config.Database, isolationLevel,
-	)
-
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, pass, host, port, dbname)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("Erro ao abrir conexão: %v", err)
 	}
 	defer db.Close()
 
-	db.SetMaxOpenConns(3)
-	db.SetMaxIdleConns(3)
+	// Configurações para estabilidade (Sequencial e sem threads)
+	db.SetMaxOpenConns(1)
+	db.SetConnMaxLifetime(time.Hour)
 
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Erro ao conectar ao banco: %v", err)
-	}
+	fmt.Println("=== Iniciando Processamento Sequencial Estável ===")
 
-	if err := ensureSourceIndexes(db); err != nil {
-		log.Fatalf("Erro ao criar índices nas tabelas de origem: %v", err)
-	}
+	// 1. Configurações de Sessão para evitar Erro 1206 (Lock table size exceeded)
+	fmt.Println("Otimizando isolamento e timeouts...")
+	db.Exec("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
+	db.Exec("SET SESSION innodb_lock_wait_timeout = 300")
 
-	if err := recreateTargetTable(db); err != nil {
-		log.Fatalf("Erro ao recriar tabela %s: %v", votosTableName, err)
-	}
+	// 2. Índices de Origem para Performance
+	fmt.Println("Verificando índices de origem...")
+	ensureIndex(db, "boletim_de_urna", "idx_bu_etl_base", "ANO_ELEICAO, CD_MUNICIPIO")
+	ensureIndex(db, "consulta_cand", "idx_cc_etl_base", "ANO_ELEICAO, NR_CANDIDATO, SG_UF, CD_CARGO, SG_UE")
 
-	anos, err := getAnos(db)
-	if err != nil {
-		log.Fatalf("Erro ao buscar anos: %v", err)
-	}
-
-	fmt.Printf("Anos encontrados: %v\n", anos)
-
-	for _, ano := range anos {
-		municipios, err := getMunicipios(db, ano)
-		if err != nil {
-			log.Fatalf("Erro ao buscar municípios do ano %s: %v", ano, err)
-		}
-		fmt.Printf("Ano %s: %d município(s) encontrado(s).\n", ano, len(municipios))
-		for i, mun := range municipios {
-			if err := insertForYearMunicipio(db, ano, mun); err != nil {
-				log.Fatalf("Erro ao inserir dados do ano %s município %s: %v", ano, mun, err)
-			}
-			if (i+1)%100 == 0 {
-				fmt.Printf("  Ano %s: %d/%d municípios processados.\n", ano, i+1, len(municipios))
-			}
-		}
-		fmt.Printf("Ano %s concluído (%d municípios).\n", ano, len(municipios))
-	}
-
-	if err := createTargetIndexes(db); err != nil {
-		log.Fatalf("Erro ao criar índices na tabela %s: %v", votosTableName, err)
-	}
-
-	fmt.Printf("Tabela '%s' criada com sucesso.\n", votosTableName)
-}
-
-func votosGetEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok && value != "" {
-		return value
-	}
-	return fallback
-}
-
-func ensureSourceIndexes(db *sql.DB) error {
-	fmt.Println("Garantindo índices nas tabelas de origem...")
-
-	indexes := []string{
-		`CREATE INDEX idx_bu_join_votos_candidatos
-		 ON boletim_de_urna (ANO_ELEICAO, NR_VOTAVEL, SG_UF, CD_CARGO_PERGUNTA, CD_MUNICIPIO)`,
-		`CREATE INDEX idx_cc_join_votos_candidatos
-		 ON consulta_cand (ANO_ELEICAO, NR_CANDIDATO, SG_UF, CD_CARGO, SG_UE)`,
-	}
-
-	for _, stmt := range indexes {
-		if _, err := db.Exec(stmt); err != nil {
-			s := err.Error()
-			if strings.Contains(s, "1061") || strings.Contains(s, "Duplicate key") {
-				continue
-			}
-			return fmt.Errorf("criar índice: %w", err)
-		}
-	}
-	return nil
-}
-
-func recreateTargetTable(db *sql.DB) error {
-	fmt.Printf("Recriando a tabela '%s'...\n", votosTableName)
-
-	if _, err := db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`", votosTableName)); err != nil {
-		return fmt.Errorf("drop table: %w", err)
-	}
-
-	createSQL := fmt.Sprintf(`
-		CREATE TABLE %s (
+	// 3. Preparar Tabela Alvo
+	fmt.Println("Recriando tabela votos_candidatos...")
+	db.Exec("DROP TABLE IF EXISTS votos_candidatos")
+	_, err = db.Exec(`
+		CREATE TABLE votos_candidatos (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-			NM_URNA_CANDIDATO VARCHAR(255) NULL,
-			NM_VOTAVEL VARCHAR(255) NULL,
-			total_votos BIGINT UNSIGNED NOT NULL,
-			ANO_ELEICAO VARCHAR(10) NULL,
-			NM_MUNICIPIO VARCHAR(255) NULL,
-			CD_MUNICIPIO VARCHAR(50) NULL,
-			CD_ELEICAO VARCHAR(50) NULL,
-			NR_TURNO VARCHAR(10) NULL,
-			SG_UF VARCHAR(10) NULL,
-			DS_CARGO_PERGUNTA VARCHAR(255) NULL,
-			SG_PARTIDO VARCHAR(50) NULL,
-			SITUACAO_ELEICAO VARCHAR(255) NULL
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-	`, votosTableName)
-
-	if _, err := db.Exec(createSQL); err != nil {
-		return fmt.Errorf("create table: %w", err)
-	}
-
-	fmt.Printf("Tabela '%s' criada.\n", votosTableName)
-	return nil
-}
-
-func getAnos(db *sql.DB) ([]string, error) {
-	rows, err := db.Query(`
-		SELECT DISTINCT ANO_ELEICAO
-		FROM boletim_de_urna
-		WHERE ANO_ELEICAO IS NOT NULL
-		ORDER BY ANO_ELEICAO
-	`)
+			NM_URNA_CANDIDATO VARCHAR(255),
+			NM_VOTAVEL VARCHAR(255),
+			total_votos BIGINT UNSIGNED,
+			ANO_ELEICAO VARCHAR(10),
+			NM_MUNICIPIO VARCHAR(255),
+			CD_MUNICIPIO VARCHAR(50),
+			CD_ELEICAO VARCHAR(50),
+			NR_TURNO VARCHAR(10),
+			SG_UF VARCHAR(10),
+			DS_CARGO_PERGUNTA VARCHAR(255),
+			SG_PARTIDO VARCHAR(50),
+			SITUACAO_ELEICAO VARCHAR(255)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
 	if err != nil {
-		return nil, err
+		log.Fatalf("Erro ao criar tabela alvo: %v", err)
 	}
-	defer rows.Close()
 
-	var anos []string
-	for rows.Next() {
-		var ano string
-		if err := rows.Scan(&ano); err != nil {
-			return nil, err
-		}
-		anos = append(anos, ano)
-	}
-	return anos, rows.Err()
-}
-
-func getMunicipios(db *sql.DB, ano string) ([]string, error) {
-	rows, err := db.Query(`
-		SELECT DISTINCT CD_MUNICIPIO
-		FROM boletim_de_urna
-		WHERE ANO_ELEICAO = ? AND CD_MUNICIPIO IS NOT NULL
-		ORDER BY CD_MUNICIPIO
-	`, ano)
+	// 4. Obter lista de Municípios a processar
+	rows, err := db.Query("SELECT DISTINCT ANO_ELEICAO, CD_MUNICIPIO FROM boletim_de_urna WHERE ANO_ELEICAO IS NOT NULL ORDER BY ANO_ELEICAO, CD_MUNICIPIO")
 	if err != nil {
-		return nil, err
+		log.Fatalf("Erro ao listar municípios: %v", err)
 	}
-	defer rows.Close()
-
-	var municipios []string
+	
+	type Mun struct{ Ano, Cod string }
+	var muns []Mun
 	for rows.Next() {
-		var mun string
-		if err := rows.Scan(&mun); err != nil {
-			return nil, err
+		var m Mun
+		if err := rows.Scan(&m.Ano, &m.Cod); err == nil {
+			muns = append(muns, m)
 		}
-		municipios = append(municipios, mun)
 	}
-	return municipios, rows.Err()
-}
+	rows.Close()
 
-func insertForYearMunicipio(db *sql.DB, ano, municipio string) error {
-	insertSQL := fmt.Sprintf(`
-		INSERT INTO %s (
-			NM_URNA_CANDIDATO,
-			NM_VOTAVEL,
-			total_votos,
-			ANO_ELEICAO,
-			NM_MUNICIPIO,
-			CD_MUNICIPIO,
-			CD_ELEICAO,
-			NR_TURNO,
-			SG_UF,
-			DS_CARGO_PERGUNTA,
-			SG_PARTIDO,
-			SITUACAO_ELEICAO
+	total := len(muns)
+	fmt.Printf("Total de %d municípios para carregar.\n", total)
+
+	// 5. Carga de Dados Sequencial (Um por um)
+	start := time.Now()
+	insertSQL := `
+		INSERT INTO votos_candidatos (
+			NM_URNA_CANDIDATO, NM_VOTAVEL, total_votos, ANO_ELEICAO, 
+			NM_MUNICIPIO, CD_MUNICIPIO, CD_ELEICAO, NR_TURNO, 
+			SG_UF, DS_CARGO_PERGUNTA, SG_PARTIDO, SITUACAO_ELEICAO
 		)
-		SELECT
-			MAX(cc.NM_URNA_CANDIDATO) AS NM_URNA_CANDIDATO,
-			bu.NM_VOTAVEL,
-			SUM(CAST(bu.QT_VOTOS AS UNSIGNED)) AS total_votos,
-			bu.ANO_ELEICAO,
-			bu.NM_MUNICIPIO,
-			bu.CD_MUNICIPIO,
-			bu.CD_ELEICAO,
-			bu.NR_TURNO,
-			bu.SG_UF,
-			MAX(bu.DS_CARGO_PERGUNTA) AS DS_CARGO_PERGUNTA,
-			MAX(cc.SG_PARTIDO) AS SG_PARTIDO,
-			MAX(cc.DS_SIT_TOT_TURNO) AS SITUACAO_ELEICAO
-		FROM boletim_de_urna AS bu
-		LEFT JOIN consulta_cand AS cc
-			ON bu.ANO_ELEICAO = cc.ANO_ELEICAO
-			AND bu.NR_VOTAVEL = cc.NR_CANDIDATO
-			AND bu.SG_UF = cc.SG_UF
-			AND bu.CD_CARGO_PERGUNTA = cc.CD_CARGO
+		SELECT 
+			MAX(cc.NM_URNA_CANDIDATO), bu.NM_VOTAVEL, SUM(CAST(bu.QT_VOTOS AS UNSIGNED)), bu.ANO_ELEICAO,
+			bu.NM_MUNICIPIO, bu.CD_MUNICIPIO, bu.CD_ELEICAO, bu.NR_TURNO,
+			bu.SG_UF, MAX(bu.DS_CARGO_PERGUNTA), MAX(cc.SG_PARTIDO), MAX(cc.DS_SIT_TOT_TURNO)
+		FROM boletim_de_urna bu
+		LEFT JOIN consulta_cand cc ON bu.ANO_ELEICAO = cc.ANO_ELEICAO 
+			AND bu.NR_VOTAVEL = cc.NR_CANDIDATO 
+			AND bu.SG_UF = cc.SG_UF 
+			AND bu.CD_CARGO_PERGUNTA = cc.CD_CARGO 
 			AND bu.CD_MUNICIPIO = cc.SG_UE
 		WHERE bu.ANO_ELEICAO = ? AND bu.CD_MUNICIPIO = ?
-		GROUP BY
-			bu.ANO_ELEICAO,
-			bu.CD_MUNICIPIO,
-			bu.NM_MUNICIPIO,
-			bu.CD_ELEICAO,
-			bu.NR_TURNO,
-			bu.SG_UF,
-			bu.CD_CARGO_PERGUNTA,
-			bu.NR_VOTAVEL,
-			bu.NM_VOTAVEL
-	`, votosTableName)
+		GROUP BY bu.ANO_ELEICAO, bu.CD_MUNICIPIO, bu.NM_MUNICIPIO, bu.CD_ELEICAO, bu.NR_TURNO, bu.SG_UF, bu.CD_CARGO_PERGUNTA, bu.NR_VOTAVEL, bu.NM_VOTAVEL`
 
-	_, err := db.Exec(insertSQL, ano, municipio)
-	if err != nil {
-		return fmt.Errorf("insert ano %s município %s: %w", ano, municipio, err)
-	}
-	return nil
-}
+	for i, m := range muns {
+		_, err := db.Exec(insertSQL, m.Ano, m.Cod)
 
-func createTargetIndexes(db *sql.DB) error {
-	fmt.Printf("Criando índices na tabela '%s'...\n", votosTableName)
-
-	indexes := []string{
-		fmt.Sprintf("CREATE INDEX idx_%s_ano ON %s (ANO_ELEICAO)", votosTableName, votosTableName),
-		fmt.Sprintf("CREATE INDEX idx_%s_municipio ON %s (CD_MUNICIPIO)", votosTableName, votosTableName),
-		fmt.Sprintf("CREATE INDEX idx_%s_uf ON %s (SG_UF)", votosTableName, votosTableName),
-		fmt.Sprintf("CREATE INDEX idx_%s_turno ON %s (NR_TURNO)", votosTableName, votosTableName),
-		fmt.Sprintf("CREATE INDEX idx_%s_votos ON %s (total_votos)", votosTableName, votosTableName),
-		fmt.Sprintf("CREATE INDEX idx_%s_ano_municipio ON %s (ANO_ELEICAO, CD_MUNICIPIO)", votosTableName, votosTableName),
-	}
-
-	for _, stmt := range indexes {
-		if _, err := db.Exec(stmt); err != nil {
-			s := err.Error()
-			if strings.Contains(s, "1061") || strings.Contains(s, "Duplicate key") {
+		if err != nil {
+			// Se der erro de lock, tentamos uma vez com isolamento mínimo antes de desistir
+			if strings.Contains(err.Error(), "1206") {
+				fmt.Printf("\nLock detectado em %s-%s, reduzindo isolamento...", m.Ano, m.Cod)
+				db.Exec("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+				_, err = db.Exec(insertSQL, m.Ano, m.Cod)
+				db.Exec("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
+			}
+			
+			if err != nil {
+				log.Printf("\nErro fatal no município %s-%s: %v", m.Ano, m.Cod, err)
 				continue
 			}
-			return fmt.Errorf("criar índice: %w", err)
+		}
+
+		if (i+1)%100 == 0 || i+1 == total {
+			pct := float64(i+1) / float64(total) * 100
+			fmt.Printf("\rProgresso: %d/%d (%.1f%%) - Tempo: %v", i+1, total, pct, time.Since(start).Truncate(time.Second))
 		}
 	}
+	fmt.Println()
 
-	fmt.Println("Índices criados com sucesso.")
-	return nil
+	// 6. Índices Finais
+	fmt.Println("Criando índices finais...")
+	ensureIndex(db, "votos_candidatos", "idx_vc_busca", "ANO_ELEICAO, CD_MUNICIPIO, NR_TURNO")
+	ensureIndex(db, "votos_candidatos", "idx_vc_uf", "SG_UF")
+
+	fmt.Printf("Carga finalizada em %v!\n", time.Since(start))
+}
+
+func ensureIndex(db *sql.DB, table, name, cols string) {
+	_, err := db.Exec(fmt.Sprintf("CREATE INDEX %s ON %s (%s)", name, table, cols))
+	if err != nil && !strings.Contains(err.Error(), "1061") {
+		log.Printf("Aviso índice %s: %v", name, err)
+	}
+}
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	if v := os.Getenv("DB_USERNAME"); key == "DB_USER" && v != "" {
+		return v
+	}
+	return fallback
 }

@@ -219,3 +219,14 @@ python import_consulta_cand.py
 python import_consulta_vagas.py
 python create_table_votos_candidatos.py
 python create_table_votos_partido.py
+
+
+
+
+
+
+
+tente recriar em go o arquivo 4_create_table_votos_candidatos.go, para tornar   
+  ele o mais simples possivel e sequencial sem threads  pois como se trata de      
+  create table temos que ter mais cuidado, o mais importante é que ele seja sequencial e sem threads. e tem que ser um script simples que nao precise de muito codigo. e que rode em um servidor de apenas 2 nucleos vcpu. mas com consistencia. mas se tiver como adicionar threads, adicione, mas deve ser sequencial. e se tiver como deixar o mais rapido possivel, deixe.
+  a prioridade é a velocidade e a capacidade de processamento em cpus de baixo custo e de baixa memoria.
