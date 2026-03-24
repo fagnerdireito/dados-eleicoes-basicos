@@ -24,6 +24,14 @@ path = "src/bin/4_create_table_votos_candidatos.rs"
 name = "5_create_table_votos_partido"
 path = "src/bin/5_create_table_votos_partido.rs"
 
+[[bin]]
+name = "6_create_table_estados"
+path = "src/bin/6_create_table_estados.rs"
+
+[[bin]]
+name = "7_import_municipios"
+path = "src/bin/7_import_municipios.rs"
+
 [dependencies]
 anyhow = "1.0"
 csv = "1.3"
