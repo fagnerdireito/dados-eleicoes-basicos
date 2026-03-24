@@ -276,3 +276,14 @@ analise porque está ficando vazio. verifique se o arquivo que cria a tabela vot
 pode ser que a tabela consulta_cand nao possui a referencia, precisamos saber onde esta o erro.
 
 apenas analise
+
+
+
+
+
+
+SELECT * FROM consulta_cand WHERE "NM_UE" = 'ACRELÂNDIA' AND "ANO_ELEICAO"='2024' AND "DS_CARGO" = 'PREFEITO';
+
+
+
+SELECT * FROM votos_candidatos WHERE "NM_MUNICIPIO" = 'ACRELÂNDIA' AND "SG_UF"='AC' AND "ANO_ELEICAO"='2024' AND "DS_CARGO_PERGUNTA" = 'PREFEITO';

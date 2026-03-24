@@ -10,6 +10,7 @@
 //! 0 `DT_GERACAO`, 1 `HH_GERACAO`, 2 `CD_UF_TSE`, 3 `CD_UF_IBGE`, 4 `SG_UF`, 5 `NM_UF`,
 //! 6 `CD_MUNICIPIO_TSE`, 7 `NM_MUNICIPIO_TSE`, 8 `CD_MUNICIPIO_IBGE`, 9 `NM_MUNICIPIO_IBGE`.
 //! Se a 1ª célula for `DT_GERACAO`, essa linha é só cabeçalho e é ignorada nos inserts.
+//! `codigo_tse` e `nome` são gravados em **MAIÚSCULAS** (Unicode).
 
 use anyhow::{Context, Result};
 use csv::ReaderBuilder;
@@ -167,8 +168,8 @@ fn apply_municipio_row(
     first_bad_uf: &mut Option<String>,
 ) -> Result<()> {
     let sg = norm_uf(&cell(record, i_sg));
-    let cod = cell(record, i_cod);
-    let nome = cell(record, i_nome);
+    let cod = cell(record, i_cod).to_uppercase();
+    let nome = cell(record, i_nome).to_uppercase();
     if cod.is_empty() || nome.is_empty() {
         *skipped_empty += 1;
         return Ok(());
