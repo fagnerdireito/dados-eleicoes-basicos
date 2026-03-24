@@ -230,3 +230,49 @@ tente recriar em go o arquivo 4_create_table_votos_candidatos.go, para tornar
   ele o mais simples possivel e sequencial sem threads  pois como se trata de      
   create table temos que ter mais cuidado, o mais importante é que ele seja sequencial e sem threads. e tem que ser um script simples que nao precise de muito codigo. e que rode em um servidor de apenas 2 nucleos vcpu. mas com consistencia. mas se tiver como adicionar threads, adicione, mas deve ser sequencial. e se tiver como deixar o mais rapido possivel, deixe.
   a prioridade é a velocidade e a capacidade de processamento em cpus de baixo custo e de baixa memoria.
+
+
+
+
+
+
+
+
+
+
+
+
+Verificando o esquema da tabela votos_candidatos e uma amostra de dados — os nomes vêm de NM_URNA_CANDIDATO. uf AC, cidade bujari.
+Confirmando: NM_URNA_CANDIDATO está vazio no banco; o nome aparece em NM_VOTAVEL. Verificando vereadores:
+Detectado o problema: no banco NM_URNA_CANDIDATO está vazio e os nomes estão em NM_VOTAVEL (ex.: "PADEIRO"). O código só usava NM_URNA_CANDIDATO e o filtro de vereador exigia NM_URNA_CANDIDATO preenchido — por isso a lista de vereadores ficava vazia. Corrigindo mapeamento e filtro e adicionando um teste unitário simples
+Detectado o problema: no banco NM_URNA_CANDIDATO está vazio e os nomes estão em NM_VOTAVEL (ex.: "PADEIRO"). O código só usava NM_URNA_CANDIDATO e o filtro de vereador exigia NM_URNA_CANDIDATO preenchido — por isso a lista de vereadores ficava vazia. Corrigindo mapeamento e filtro e adicionando um teste unitário simples.
+No banco ligado à conexão eleicoes (no seu .env,  aponta para dadoseleicoes), a tabela votos_candidatos tem NM_URNA_CANDIDATO vazio para os registros de BUJARI/2024, e o nome que aparece no agregado está em NM_VOTAVEL (ex.: PADEIRO, MICHEL MARQUES).
+O EleicoesPage só usava NM_URNA_CANDIDATO na tela e no filtro de vereador exigia NM_URNA_CANDIDATO preenchido. 
+Prefeito: porcentagens e votos vinham certos, mas nome ia vazio.
+Vereador: todos os candidatos eram descartados pelo gerando “Nenhum resultado encontrado”.
+
+analise porque está ficando vazio. verifique se o arquivo que cria a tabela votos candidatos que se relaciona com a tabela consulta_cand está correta.
+pode ser que a tabela consulta_cand nao possui a referencia, precisamos saber onde esta o erro.
+
+
+
+
+
+
+
+
+
+
+Verificando o esquema da tabela votos_candidatos e uma amostra de dados — os nomes vêm de NM_URNA_CANDIDATO. uf AC, cidade bujari.
+Confirmando: NM_URNA_CANDIDATO está vazio no banco; o nome aparece em NM_VOTAVEL. Verificando vereadores:
+Detectado o problema: no banco NM_URNA_CANDIDATO está vazio e os nomes estão em NM_VOTAVEL (ex.: "PADEIRO"). O código só usava NM_URNA_CANDIDATO e o filtro de vereador exigia NM_URNA_CANDIDATO preenchido — por isso a lista de vereadores ficava vazia. Corrigindo mapeamento e filtro e adicionando um teste unitário simples
+Detectado o problema: no banco NM_URNA_CANDIDATO está vazio e os nomes estão em NM_VOTAVEL (ex.: "PADEIRO"). O código só usava NM_URNA_CANDIDATO e o filtro de vereador exigia NM_URNA_CANDIDATO preenchido — por isso a lista de vereadores ficava vazia. Corrigindo mapeamento e filtro e adicionando um teste unitário simples.
+No banco ligado à conexão eleicoes (no seu .env,  aponta para dadoseleicoes), a tabela votos_candidatos tem NM_URNA_CANDIDATO vazio para os registros de BUJARI/2024, e o nome que aparece no agregado está em NM_VOTAVEL (ex.: PADEIRO, MICHEL MARQUES).
+O EleicoesPage só usava NM_URNA_CANDIDATO na tela e no filtro de vereador exigia NM_URNA_CANDIDATO preenchido. 
+Prefeito: porcentagens e votos vinham certos, mas nome ia vazio.
+Vereador: todos os candidatos eram descartados pelo gerando “Nenhum resultado encontrado”.
+
+analise porque está ficando vazio. verifique se o arquivo que cria a tabela votos candidatos que se relaciona com a tabela consulta_cand está correta.
+pode ser que a tabela consulta_cand nao possui a referencia, precisamos saber onde esta o erro.
+
+apenas analise

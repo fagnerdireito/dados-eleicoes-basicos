@@ -96,7 +96,7 @@ func main() {
 			SG_UF, DS_CARGO_PERGUNTA, SG_PARTIDO, SITUACAO_ELEICAO
 		)
 		SELECT 
-			MAX(cc.NM_URNA_CANDIDATO), bu.NM_VOTAVEL, SUM(CAST(bu.QT_VOTOS AS UNSIGNED)), bu.ANO_ELEICAO,
+			bu.NM_VOTAVEL, bu.NM_VOTAVEL, SUM(CAST(bu.QT_VOTOS AS UNSIGNED)), bu.ANO_ELEICAO,
 			bu.NM_MUNICIPIO, bu.CD_MUNICIPIO, bu.CD_ELEICAO, bu.NR_TURNO,
 			bu.SG_UF, MAX(bu.DS_CARGO_PERGUNTA), MAX(cc.SG_PARTIDO), MAX(cc.DS_SIT_TOT_TURNO)
 		FROM boletim_de_urna bu
@@ -104,7 +104,11 @@ func main() {
 			AND bu.NR_VOTAVEL = cc.NR_CANDIDATO 
 			AND bu.SG_UF = cc.SG_UF 
 			AND bu.CD_CARGO_PERGUNTA = cc.CD_CARGO 
-			AND bu.CD_MUNICIPIO = cc.SG_UE
+			AND (
+				cc.SG_UE = LPAD(bu.CD_MUNICIPIO, 5, '0') -- Municipal
+				OR cc.SG_UE = bu.SG_UF                  -- Estadual
+				OR cc.SG_UE = 'BR'                      -- Federal
+			)
 		WHERE bu.ANO_ELEICAO = ? AND bu.CD_MUNICIPIO = ?
 		GROUP BY bu.ANO_ELEICAO, bu.CD_MUNICIPIO, bu.NM_MUNICIPIO, bu.CD_ELEICAO, bu.NR_TURNO, bu.SG_UF, bu.CD_CARGO_PERGUNTA, bu.NR_VOTAVEL, bu.NM_VOTAVEL`
 
