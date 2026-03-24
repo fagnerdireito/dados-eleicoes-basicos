@@ -287,3 +287,18 @@ SELECT * FROM consulta_cand WHERE "NM_UE" = 'ACRELÂNDIA' AND "ANO_ELEICAO"='202
 
 
 SELECT * FROM votos_candidatos WHERE "NM_MUNICIPIO" = 'ACRELÂNDIA' AND "SG_UF"='AC' AND "ANO_ELEICAO"='2024' AND "DS_CARGO_PERGUNTA" = 'PREFEITO';
+
+
+
+
+# cidades
+crie o arquivo 6 na pasta go_postgres/ que vai importar para o postgresql  os municipio_tse_ibge.csv com essa etrutura. se a tabela ja existe nao cria se os dados existem nao inclui. 
+o nome do municipio tem que ser importado em maiuscula.
+
+
+#estados
+crie o arquivo 7 na pasta go_postgres/ que vai importar para o postgresql  os estados do brasil e DF com a tabela de nome estados com essa etrutura. se a tabela ja existe nao cria se os dados existem nao inclui. a origem dos dados podem ser a tabela boletim_de_urna.
+
+
+
+dentro da pasta go_postgres adicione o arquivo run_all.sh que vai executar todos os arquivos go em sequencia do 1 ao 7.
