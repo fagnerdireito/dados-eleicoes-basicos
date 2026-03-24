@@ -45,10 +45,11 @@ func main() {
 	ensureIndex(db, "boletim_de_urna", "idx_bu_etl_base", "ANO_ELEICAO, CD_MUNICIPIO")
 	ensureIndex(db, "consulta_cand", "idx_cc_etl_base", "ANO_ELEICAO, NR_CANDIDATO, SG_UF, CD_CARGO, SG_UE")
 
-	// 3. Preparar Tabela Alvo (mantém dados existentes; não recria)
-	fmt.Println("Garantindo tabela votos_candidatos...")
+	// 3. Preparar Tabela Alvo
+	fmt.Println("Recriando tabela votos_candidatos...")
+	db.Exec("DROP TABLE IF EXISTS votos_candidatos")
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS votos_candidatos (
+		CREATE TABLE votos_candidatos (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 			NM_URNA_CANDIDATO VARCHAR(255),
 			NM_VOTAVEL VARCHAR(255),
@@ -90,52 +91,26 @@ func main() {
 	start := time.Now()
 	insertSQL := `
 		INSERT INTO votos_candidatos (
-			NM_URNA_CANDIDATO, NM_VOTAVEL, total_votos, ANO_ELEICAO,
-			NM_MUNICIPIO, CD_MUNICIPIO, CD_ELEICAO, NR_TURNO,
+			NM_URNA_CANDIDATO, NM_VOTAVEL, total_votos, ANO_ELEICAO, 
+			NM_MUNICIPIO, CD_MUNICIPIO, CD_ELEICAO, NR_TURNO, 
 			SG_UF, DS_CARGO_PERGUNTA, SG_PARTIDO, SITUACAO_ELEICAO
 		)
-		SELECT
-			sub.nm_urna, sub.nm_vot, sub.total_votos, sub.ANO_ELEICAO,
-			sub.NM_MUNICIPIO, sub.CD_MUNICIPIO, sub.CD_ELEICAO, sub.NR_TURNO,
-			sub.SG_UF, sub.DS_CARGO_PERGUNTA, sub.SG_PARTIDO, sub.SITUACAO_ELEICAO
-		FROM (
-			SELECT
-				bu.NM_VOTAVEL AS nm_urna,
-				bu.NM_VOTAVEL AS nm_vot,
-				SUM(CAST(bu.QT_VOTOS AS UNSIGNED)) AS total_votos,
-				bu.ANO_ELEICAO,
-				bu.NM_MUNICIPIO,
-				bu.CD_MUNICIPIO,
-				bu.CD_ELEICAO,
-				bu.NR_TURNO,
-				bu.SG_UF,
-				MAX(bu.DS_CARGO_PERGUNTA) AS DS_CARGO_PERGUNTA,
-				MAX(cc.SG_PARTIDO) AS SG_PARTIDO,
-				MAX(cc.DS_SIT_TOT_TURNO) AS SITUACAO_ELEICAO
-			FROM boletim_de_urna bu
-			LEFT JOIN consulta_cand cc ON bu.ANO_ELEICAO = cc.ANO_ELEICAO
-				AND bu.NR_VOTAVEL = cc.NR_CANDIDATO
-				AND bu.SG_UF = cc.SG_UF
-				AND bu.CD_CARGO_PERGUNTA = cc.CD_CARGO
-				AND (
-					cc.SG_UE = LPAD(bu.CD_MUNICIPIO, 5, '0')
-					OR cc.SG_UE = bu.SG_UF
-					OR cc.SG_UE = 'BR'
-				)
-			WHERE bu.ANO_ELEICAO = ? AND bu.CD_MUNICIPIO = ?
-			GROUP BY bu.ANO_ELEICAO, bu.CD_MUNICIPIO, bu.NM_MUNICIPIO, bu.CD_ELEICAO, bu.NR_TURNO, bu.SG_UF, bu.CD_CARGO_PERGUNTA, bu.NR_VOTAVEL, bu.NM_VOTAVEL
-		) sub
-		WHERE NOT EXISTS (
-			SELECT 1 FROM votos_candidatos vc
-			WHERE vc.ANO_ELEICAO <=> sub.ANO_ELEICAO
-				AND vc.CD_MUNICIPIO <=> sub.CD_MUNICIPIO
-				AND vc.NM_MUNICIPIO <=> sub.NM_MUNICIPIO
-				AND vc.CD_ELEICAO <=> sub.CD_ELEICAO
-				AND vc.NR_TURNO <=> sub.NR_TURNO
-				AND vc.SG_UF <=> sub.SG_UF
-				AND vc.DS_CARGO_PERGUNTA <=> sub.DS_CARGO_PERGUNTA
-				AND vc.NM_VOTAVEL <=> sub.nm_vot
-		)`
+		SELECT 
+			bu.NM_VOTAVEL, bu.NM_VOTAVEL, SUM(CAST(bu.QT_VOTOS AS UNSIGNED)), bu.ANO_ELEICAO,
+			bu.NM_MUNICIPIO, bu.CD_MUNICIPIO, bu.CD_ELEICAO, bu.NR_TURNO,
+			bu.SG_UF, MAX(bu.DS_CARGO_PERGUNTA), MAX(cc.SG_PARTIDO), MAX(cc.DS_SIT_TOT_TURNO)
+		FROM boletim_de_urna bu
+		LEFT JOIN consulta_cand cc ON bu.ANO_ELEICAO = cc.ANO_ELEICAO 
+			AND bu.NR_VOTAVEL = cc.NR_CANDIDATO 
+			AND bu.SG_UF = cc.SG_UF 
+			AND bu.CD_CARGO_PERGUNTA = cc.CD_CARGO 
+			AND (
+				cc.SG_UE = LPAD(bu.CD_MUNICIPIO, 5, '0') -- Municipal
+				OR cc.SG_UE = bu.SG_UF                  -- Estadual
+				OR cc.SG_UE = 'BR'                      -- Federal
+			)
+		WHERE bu.ANO_ELEICAO = ? AND bu.CD_MUNICIPIO = ?
+		GROUP BY bu.ANO_ELEICAO, bu.CD_MUNICIPIO, bu.NM_MUNICIPIO, bu.CD_ELEICAO, bu.NR_TURNO, bu.SG_UF, bu.CD_CARGO_PERGUNTA, bu.NR_VOTAVEL, bu.NM_VOTAVEL`
 
 	for i, m := range muns {
 		_, err := db.Exec(insertSQL, m.Ano, m.Cod)
