@@ -85,7 +85,7 @@ var keyColumns = []string{"CD_PLEITO", "CD_MUNICIPIO", "NR_ZONA", "NR_SECAO", "C
 
 const (
 	tableName    = "boletim_de_urna"
-	maxWorkers   = 4
+	maxWorkers   = 1
 	csvSeparator = ';'
 	// MySQL suporta no máximo 65.535 placeholders por statement.
 	// O tamanho do lote é calculado em runtime com base no número de colunas.
