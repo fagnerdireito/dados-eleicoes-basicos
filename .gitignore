@@ -23,6 +23,7 @@ ENV/
 
 # Rust
 rust/target/
+rust_postgres/target/
 
 # OS
 .DS_Store
