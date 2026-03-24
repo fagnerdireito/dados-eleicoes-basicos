@@ -85,7 +85,7 @@ var keyColumns = []string{"CD_PLEITO", "CD_MUNICIPIO", "NR_ZONA", "NR_SECAO", "C
 
 const (
 	tableName    = "boletim_de_urna"
-	maxWorkers   = 1
+	maxWorkers   = 4
 	csvSeparator = ';'
 	// MySQL suporta no máximo 65.535 placeholders por statement.
 	// O tamanho do lote é calculado em runtime com base no número de colunas.
@@ -281,6 +281,10 @@ func processFile(db *sql.DB, path string) error {
 	reader.Comma = csvSeparator
 	reader.LazyQuotes = true
 	reader.TrimLeadingSpace = true
+	// Arquivos de anos diferentes podem ter quantidades distintas de colunas; não
+	// exigir o mesmo número de campos em todas as linhas. Colunas são ligadas pelo
+	// nome no cabeçalho; as que não existem no arquivo viram NULL na inserção.
+	reader.FieldsPerRecord = -1
 
 	// Lê o cabeçalho e normaliza os nomes das colunas
 	rawHeader, err := reader.Read()
