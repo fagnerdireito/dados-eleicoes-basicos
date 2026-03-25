@@ -64,7 +64,7 @@ var buColumnLengths = [][]string{
 	{"CD_TIPO_VOTAVEL", "1"},
 	{"DS_TIPO_VOTAVEL", "7"},
 	{"NR_VOTAVEL", "5"},
-	{"NM_VOTAVEL", "28"},
+	{"NM_VOTAVEL", "100"},
 	{"QT_VOTOS", "3"},
 	{"NR_URNA_EFETIVADA", "7"},
 	{"CD_CARGA_1_URNA_EFETIVADA", "24"},
