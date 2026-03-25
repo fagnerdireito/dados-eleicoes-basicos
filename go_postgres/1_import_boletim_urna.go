@@ -88,7 +88,7 @@ var keyColumns = []string{"CD_PLEITO", "CD_MUNICIPIO", "NR_ZONA", "NR_SECAO", "C
 
 const (
 	tableName    = "boletim_de_urna"
-	maxWorkers   = 1 // processamento sequencial para não sobrecarregar RAM do VPS
+	maxWorkers   = 10 // processamento sequencial para não sobrecarregar RAM do VPS
 	csvSeparator = ';'
 	// PostgreSQL: limite de parâmetros por statement (protocolo).
 	pgMaxPlaceholders = 65_535
