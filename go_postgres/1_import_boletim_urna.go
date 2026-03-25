@@ -41,7 +41,7 @@ var buColumnLengths = [][]string{
 	{"HH_GERACAO", "8"},
 	{"ANO_ELEICAO", "4"},
 	{"CD_TIPO_ELEICAO", "1"},
-	{"NM_TIPO_ELEICAO", "17"},
+	{"NM_TIPO_ELEICAO", "51"},
 	{"CD_PLEITO", "20"},
 	{"DT_PLEITO", "19"},
 	{"NR_TURNO", "1"},
