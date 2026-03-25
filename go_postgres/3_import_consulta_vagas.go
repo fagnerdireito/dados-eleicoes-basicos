@@ -51,7 +51,7 @@ var vagasKeyColumns = []string{"ANO_ELEICAO", "CD_ELEICAO", "SG_UE", "CD_CARGO"}
 
 const (
 	vagasTableName      = "consulta_vagas"
-	vagasMaxWorkers     = 2
+	vagasMaxWorkers     = 4
 	vagasCsvSeparator   = ';'
 	vagasMaxPlaceholders = 65_535
 )

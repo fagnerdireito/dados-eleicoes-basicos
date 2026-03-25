@@ -41,46 +41,46 @@ var buColumnLengths = [][]string{
 	{"ANO_ELEICAO", "4"},
 	{"CD_TIPO_ELEICAO", "1"},
 	{"NM_TIPO_ELEICAO", "17"},
-	{"CD_PLEITO", "3"},
+	{"CD_PLEITO", "20"},
 	{"DT_PLEITO", "19"},
 	{"NR_TURNO", "1"},
-	{"CD_ELEICAO", "3"},
+	{"CD_ELEICAO", "20"},
 	{"DS_ELEICAO", "30"},
-	{"SG_UF", "2"},
+	{"SG_UF", "20"},
 	{"CD_MUNICIPIO", "5"},
-	{"NM_MUNICIPIO", "22"},
-	{"NR_ZONA", "3"},
-	{"NR_SECAO", "3"},
+	{"NM_MUNICIPIO", "100"},
+	{"NR_ZONA", "20"},
+	{"NR_SECAO", "20"},
 	{"NR_LOCAL_VOTACAO", "4"},
-	{"CD_CARGO_PERGUNTA", "2"},
+	{"CD_CARGO_PERGUNTA", "20"},
 	{"DS_CARGO_PERGUNTA", "17"},
-	{"NR_PARTIDO", "2"},
+	{"NR_PARTIDO", "20"},
 	{"SG_PARTIDO", "13"},
 	{"NM_PARTIDO", "46"},
 	{"DT_BU_RECEBIDO", "19"},
-	{"QT_APTOS", "3"},
-	{"QT_COMPARECIMENTO", "3"},
-	{"QT_ABSTENCOES", "3"},
+	{"QT_APTOS", "20"},
+	{"QT_COMPARECIMENTO", "20"},
+	{"QT_ABSTENCOES", "20"},
 	{"CD_TIPO_URNA", "1"},
-	{"DS_TIPO_URNA", "7"},
+	{"DS_TIPO_URNA", "20"},
 	{"CD_TIPO_VOTAVEL", "1"},
-	{"DS_TIPO_VOTAVEL", "7"},
+	{"DS_TIPO_VOTAVEL", "20"},
 	{"NR_VOTAVEL", "5"},
-	{"NM_VOTAVEL", "28"},
-	{"QT_VOTOS", "3"},
-	{"NR_URNA_EFETIVADA", "7"},
+	{"NM_VOTAVEL", "255"},
+	{"QT_VOTOS", "20"},
+	{"NR_URNA_EFETIVADA", "255"},
 	{"CD_CARGA_1_URNA_EFETIVADA", "24"},
-	{"CD_CARGA_2_URNA_EFETIVADA", "7"},
-	{"CD_FLASHCARD_URNA_EFETIVADA", "8"},
+	{"CD_CARGA_2_URNA_EFETIVADA", "255"},
+	{"CD_FLASHCARD_URNA_EFETIVADA", "50"},
 	{"DT_CARGA_URNA_EFETIVADA", "19"},
-	{"DS_CARGO_PERGUNTA_SECAO", "8"},
-	{"DS_SECOES_AGREGADAS", "15"},
+	{"DS_CARGO_PERGUNTA_SECAO", "50"},
+	{"DS_SECOES_AGREGADAS", "50"},
 	{"DT_ABERTURA", "19"},
 	{"DT_ENCERRAMENTO", "19"},
-	{"QT_ELEI_BIOM_SEM_HABILITACAO", "2"},
+	{"QT_ELEI_BIOM_SEM_HABILITACAO", "255"},
 	{"DT_EMISSAO_BU", "19"},
-	{"NR_JUNTA_APURADORA", "2"},
-	{"NR_TURMA_APURADORA", "2"},
+	{"NR_JUNTA_APURADORA", "255"},
+	{"NR_TURMA_APURADORA", "255"},
 }
 
 var keyColumns = []string{"CD_PLEITO", "CD_MUNICIPIO", "NR_ZONA", "NR_SECAO", "CD_CARGO_PERGUNTA", "NR_VOTAVEL"}
@@ -366,9 +366,12 @@ func processFile(db *sql.DB, path string) error {
 		row := make([]interface{}, len(targetCols))
 		for i, colName := range targetCols {
 			if idx, ok := colIndexes[colName]; ok && idx < len(record) {
-				v := record[idx]
+				v := strings.TrimSpace(record[idx])
 				if v == "" {
 					row[i] = nil
+				} else if colName == "DS_CARGO_PERGUNTA" || colName == "DS_CARGO_PERGUNTA_SECAO" {
+					// CSV do TSE (ex.: 2024) usa "Prefeito"/"Vereador"; comparações SQL com 'PREFEITO' falham sem normalizar.
+					row[i] = strings.ToUpper(v)
 				} else {
 					row[i] = v
 				}

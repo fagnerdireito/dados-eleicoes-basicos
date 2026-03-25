@@ -302,3 +302,11 @@ crie o arquivo 7 na pasta go_postgres/ que vai importar para o postgresql  os es
 
 
 dentro da pasta go_postgres adicione o arquivo run_all.sh que vai executar todos os arquivos go em sequencia do 1 ao 7.
+
+
+
+
+
+em go_postgres, pode ser que tivemos alguns problemas pois 
+SELECT * FROM votos_candidatos WHERE "NM_MUNICIPIO" = 'ACRELÂNDIA' AND "SG_UF"='AC' AND "ANO_ELEICAO"='2024' AND "DS_CARGO_PERGUNTA" = 'PREFEITO';
+nao retorna dados mas tem esses dados nos arquivos csv por exemplo em bweb_1t_AC_091020241636.csv

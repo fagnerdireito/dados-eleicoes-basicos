@@ -34,34 +34,34 @@ var candColumnLengths = [][]string{
 	{"HH_GERACAO", "8"},
 	{"ANO_ELEICAO", "4"},
 	{"CD_TIPO_ELEICAO", "1"},
-	{"NM_TIPO_ELEICAO", "20"},
+	{"NM_TIPO_ELEICAO", "100"},
 	{"NR_TURNO", "1"},
 	{"CD_ELEICAO", "4"},
-	{"DS_ELEICAO", "40"},
+	{"DS_ELEICAO", "100"},
 	{"DT_ELEICAO", "10"},
 	{"TP_ABRANGENCIA", "10"},
 	{"SG_UF", "2"},
 	{"SG_UE", "5"},
-	{"NM_UE", "40"},
+	{"NM_UE", "255"},
 	{"CD_CARGO", "2"},
-	{"DS_CARGO", "20"},
+	{"DS_CARGO", "100"},
 	{"SQ_CANDIDATO", "15"},
 	{"NR_CANDIDATO", "5"},
 	{"NM_CANDIDATO", "70"},
-	{"NM_URNA_CANDIDATO", "40"},
-	{"NM_SOCIAL_CANDIDATO", "40"},
+	{"NM_URNA_CANDIDATO", "255"},
+	{"NM_SOCIAL_CANDIDATO", "255"},
 	{"NR_CPF_CANDIDATO", "15"},
 	{"DS_EMAIL", "100"},
 	{"CD_SITUACAO_CANDIDATURA", "2"},
-	{"DS_SITUACAO_CANDIDATURA", "20"},
-	{"TP_AGREMIACAO", "20"},
+	{"DS_SITUACAO_CANDIDATURA", "100"},
+	{"TP_AGREMIACAO", "100"},
 	{"NR_PARTIDO", "5"},
 	{"SG_PARTIDO", "15"},
 	{"NM_PARTIDO", "50"},
 	{"NR_FEDERACAO", "5"},
 	{"NM_FEDERACAO", "50"},
-	{"SG_FEDERACAO", "20"},
-	{"DS_COMPOSICAO_FEDERACAO", "20"},
+	{"SG_FEDERACAO", "100"},
+	{"DS_COMPOSICAO_FEDERACAO", "100"},
 	{"SQ_COLIGACAO", "15"},
 	{"NM_COLIGACAO", "100"},
 	{"DS_COMPOSICAO_COLIGACAO", "255"},
@@ -79,14 +79,14 @@ var candColumnLengths = [][]string{
 	{"CD_OCUPACAO", "5"},
 	{"DS_OCUPACAO", "80"},
 	{"CD_SIT_TOT_TURNO", "2"},
-	{"DS_SIT_TOT_TURNO", "20"},
+	{"DS_SIT_TOT_TURNO", "100"},
 }
 
 var candKeyColumns = []string{"ANO_ELEICAO", "SQ_CANDIDATO"}
 
 const (
 	candTableName    = "consulta_cand"
-	candMaxWorkers   = 2
+	candMaxWorkers   = 4
 	candCsvSeparator = ';'
 	candMaxPlaceholders = 65_535
 )
@@ -351,9 +351,11 @@ func candProcessFile(db *sql.DB, path string) error {
 		row := make([]interface{}, len(targetCols))
 		for i, colName := range targetCols {
 			if idx, ok := colIndexes[colName]; ok && idx < len(record) {
-				v := record[idx]
+				v := strings.TrimSpace(record[idx])
 				if v == "" {
 					row[i] = nil
+				} else if colName == "DS_CARGO" {
+					row[i] = strings.ToUpper(v)
 				} else {
 					row[i] = v
 				}
