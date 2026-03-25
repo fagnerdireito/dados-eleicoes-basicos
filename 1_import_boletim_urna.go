@@ -18,7 +18,7 @@ import (
 	"golang.org/x/text/encoding/charmap"
 )
 
-// Config holds DB configuration
+// Config holds DB configuration.
 type Config struct {
 	Host     string
 	Port     string
