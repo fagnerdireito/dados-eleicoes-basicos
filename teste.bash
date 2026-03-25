@@ -310,3 +310,34 @@ dentro da pasta go_postgres adicione o arquivo run_all.sh que vai executar todos
 em go_postgres, pode ser que tivemos alguns problemas pois 
 SELECT * FROM votos_candidatos WHERE "NM_MUNICIPIO" = 'ACRELÂNDIA' AND "SG_UF"='AC' AND "ANO_ELEICAO"='2024' AND "DS_CARGO_PERGUNTA" = 'PREFEITO';
 nao retorna dados mas tem esses dados nos arquivos csv por exemplo em bweb_1t_AC_091020241636.csv
+
+
+
+
+
+
+
+/var/www/dados-eleicoes-basicos/bweb # ls
+bweb_1t_AC_051020221321      bweb_1t_MS_091020241636      bweb_1t_RS_181120201549.csv  bweb_2t_ES_281020241046      bweb_2t_RJ_281020241046
+bweb_1t_AC_091020241636      bweb_1t_MS_181120201549.csv  bweb_1t_SC_091020241636      bweb_2t_ES_301120201245.csv  bweb_2t_RJ_301120201245.csv
+bweb_1t_AC_181120201549.csv  bweb_1t_MT_091020241636      bweb_1t_SC_181120201549.csv  bweb_2t_GO_281020241046      bweb_2t_RN_281020241046
+bweb_1t_AL_091020241636      bweb_1t_MT_181120201549.csv  bweb_1t_SE_091020241636      bweb_2t_GO_301120201245.csv  bweb_2t_RN_301120201245.csv
+bweb_1t_AL_181120201549.csv  bweb_1t_PA_091020241636      bweb_1t_SE_181120201549.csv  bweb_2t_GO_311020221535      bweb_2t_RO_281020241046
+bweb_1t_AM_091020241636      bweb_1t_PA_181120201549.csv  bweb_1t_SP_091020241636      bweb_2t_MA_281020241046      bweb_2t_RO_301120201245.csv
+bweb_1t_AM_181120201549.csv  bweb_1t_PB_091020241636      bweb_1t_SP_181120201549.csv  bweb_2t_MA_301120201245.csv  bweb_2t_RR_281020241046
+bweb_1t_AP_071220201550.csv  bweb_1t_PB_181120201549.csv  bweb_1t_TO_091020241636      bweb_2t_MG_281020241046      bweb_2t_RR_301120201245.csv
+bweb_1t_AP_091020241636      bweb_1t_PE_091020241636      bweb_1t_TO_181120201549.csv  bweb_2t_MG_301120201245.csv  bweb_2t_RS_281020241046
+bweb_1t_AP_181120201549.csv  bweb_1t_PE_181120201549.csv  bweb_2t_AC_281020241046      bweb_2t_MS_281020241046      bweb_2t_RS_301120201245.csv
+bweb_1t_BA_091020241636      bweb_1t_PI_091020241636      bweb_2t_AC_301120201245.csv  bweb_2t_MS_301120201245.csv  bweb_2t_SC_281020241046
+bweb_1t_BA_181120201549.csv  bweb_1t_PI_181120201549.csv  bweb_2t_AC_311020221535      bweb_2t_MT_281020241046      bweb_2t_SC_301120201245.csv
+bweb_1t_CE_091020241636      bweb_1t_PR_091020241636      bweb_2t_AL_281020241046      bweb_2t_MT_301120201245.csv  bweb_2t_SE_281020241046
+bweb_1t_CE_181120201549.csv  bweb_1t_PR_181120201549.csv  bweb_2t_AL_301120201245.csv  bweb_2t_PA_281020241046      bweb_2t_SE_301120201245.csv
+bweb_1t_ES_091020241636      bweb_1t_RJ_091020241636      bweb_2t_AM_281020241046      bweb_2t_PA_301120201245.csv  bweb_2t_SP_281020241046
+bweb_1t_ES_181120201549.csv  bweb_1t_RJ_181120201549.csv  bweb_2t_AM_301120201245.csv  bweb_2t_PB_281020241046      bweb_2t_SP_301120201245.csv
+bweb_1t_GO_051020221321      bweb_1t_RN_091020241636      bweb_2t_AP_211220201155.csv  bweb_2t_PB_301120201245.csv  bweb_2t_TO_281020241046
+bweb_1t_GO_091020241636      bweb_1t_RN_181120201549.csv  bweb_2t_AP_281020241046      bweb_2t_PE_281020241046      bweb_2t_TO_301120201245.csv
+bweb_1t_GO_181120201549.csv  bweb_1t_RO_091020241636      bweb_2t_AP_301120201245.csv  bweb_2t_PE_301120201245.csv  leiame-boletimurnaweb.pdf
+bweb_1t_MA_091020241636      bweb_1t_RO_181120201549.csv  bweb_2t_BA_281020241046      bweb_2t_PI_281020241046      urls_bweb2020.txt
+bweb_1t_MA_181120201549.csv  bweb_1t_RR_091020241636      bweb_2t_BA_301120201245.csv  bweb_2t_PI_301120201245.csv
+bweb_1t_MG_091020241636      bweb_1t_RR_181120201549.csv  bweb_2t_CE_281020241046      bweb_2t_PR_281020241046
+bweb_1t_MG_181120201549.csv  bweb_1t_RS_091020241636      bweb_2t_CE_301120201245.csv  bweb_2t_PR_301120201245.csv

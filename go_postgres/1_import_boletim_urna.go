@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
@@ -45,15 +46,15 @@ var buColumnLengths = [][]string{
 	{"DT_PLEITO", "19"},
 	{"NR_TURNO", "1"},
 	{"CD_ELEICAO", "20"},
-	{"DS_ELEICAO", "100"},
+	{"DS_ELEICAO", "500"},
 	{"SG_UF", "20"},
 	{"CD_MUNICIPIO", "5"},
-	{"NM_MUNICIPIO", "100"},
+	{"NM_MUNICIPIO", "255"},
 	{"NR_ZONA", "20"},
 	{"NR_SECAO", "20"},
 	{"NR_LOCAL_VOTACAO", "4"},
 	{"CD_CARGO_PERGUNTA", "20"},
-	{"DS_CARGO_PERGUNTA", "100"},
+	{"DS_CARGO_PERGUNTA", "99"},
 	{"NR_PARTIDO", "20"},
 	{"SG_PARTIDO", "13"},
 	{"NM_PARTIDO", "46"},
@@ -71,10 +72,10 @@ var buColumnLengths = [][]string{
 	{"NR_URNA_EFETIVADA", "255"},
 	{"CD_CARGA_1_URNA_EFETIVADA", "24"},
 	{"CD_CARGA_2_URNA_EFETIVADA", "255"},
-	{"CD_FLASHCARD_URNA_EFETIVADA", "100"},
+	{"CD_FLASHCARD_URNA_EFETIVADA", "255"},
 	{"DT_CARGA_URNA_EFETIVADA", "19"},
-	{"DS_CARGO_PERGUNTA_SECAO", "100"},
-	{"DS_SECOES_AGREGADAS", "100"},
+	{"DS_CARGO_PERGUNTA_SECAO", "500"},
+	{"DS_SECOES_AGREGADAS", "500"},
 	{"DT_ABERTURA", "19"},
 	{"DT_ENCERRAMENTO", "19"},
 	{"QT_ELEI_BIOM_SEM_HABILITACAO", "255"},
@@ -87,7 +88,7 @@ var keyColumns = []string{"CD_PLEITO", "CD_MUNICIPIO", "NR_ZONA", "NR_SECAO", "C
 
 const (
 	tableName    = "boletim_de_urna"
-	maxWorkers   = 4
+	maxWorkers   = 1 // processamento sequencial para não sobrecarregar RAM do VPS
 	csvSeparator = ';'
 	// PostgreSQL: limite de parâmetros por statement (protocolo).
 	pgMaxPlaceholders = 65_535
@@ -251,6 +252,17 @@ func postgresDSN(c Config) string {
 	return u.String()
 }
 
+// colsToMigrate lista colunas cujo tamanho foi aumentado em relação à definição
+// original. O ALTER TYPE é idempotente: aumentar um VARCHAR nunca perde dados.
+var colsToMigrate = []struct{ name, size string }{
+	{"DS_ELEICAO", "500"},
+	{"NM_MUNICIPIO", "255"},
+	{"DS_CARGO_PERGUNTA", "500"},
+	{"CD_FLASHCARD_URNA_EFETIVADA", "255"},
+	{"DS_CARGO_PERGUNTA_SECAO", "500"},
+	{"DS_SECOES_AGREGADAS", "500"},
+}
+
 func setupTable(db *sql.DB) error {
 	var cols []string
 	cols = append(cols, `id BIGSERIAL PRIMARY KEY`)
@@ -270,6 +282,10 @@ func setupTable(db *sql.DB) error {
 	}
 	fmt.Printf("Tabela \"%s\" verificada/criada.\n", tableName)
 
+	if err := migrateColumns(db); err != nil {
+		return fmt.Errorf("migrar colunas: %w", err)
+	}
+
 	idxQuery := fmt.Sprintf(
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_bu ON "%s" (%s)`,
 		tableName, strings.Join(quoteColumns(keyColumns), ", "),
@@ -278,6 +294,23 @@ func setupTable(db *sql.DB) error {
 		return fmt.Errorf("criar índice: %w", err)
 	}
 	fmt.Println("Índice único (idx_unique_bu) garantido.")
+	return nil
+}
+
+// migrateColumns garante que colunas que tiveram o tamanho aumentado no código
+// também sejam atualizadas em tabelas pré-existentes. VARCHAR maior nunca perde dados.
+func migrateColumns(db *sql.DB) error {
+	for _, m := range colsToMigrate {
+		q := fmt.Sprintf(`ALTER TABLE "%s" ALTER COLUMN "%s" TYPE VARCHAR(%s)`, tableName, m.name, m.size)
+		if _, err := db.Exec(q); err != nil {
+			// Coluna pode não existir em tabelas criadas por versões antigas do schema.
+			if strings.Contains(err.Error(), "does not exist") {
+				continue
+			}
+			return fmt.Errorf("alterar coluna %s: %w", m.name, err)
+		}
+	}
+	fmt.Println("Colunas verificadas/expandidas.")
 	return nil
 }
 
@@ -396,6 +429,25 @@ func processFile(db *sql.DB, path string) error {
 	return nil
 }
 
+// isRetryableDBError retorna true para erros transitórios de conexão do PostgreSQL:
+//   - 57P01: terminating connection due to administrator command
+//   - 57P03: the database system is shutting down
+//   - 08*:   connection exception class (ex.: 08006 connection failure)
+func isRetryableDBError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "57p01") ||
+		strings.Contains(msg, "57p03") ||
+		strings.Contains(msg, "08006") ||
+		strings.Contains(msg, "terminating connection") ||
+		strings.Contains(msg, "shutting down") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "connection reset by peer") ||
+		strings.Contains(msg, "broken pipe")
+}
+
 func executeBatch(db *sql.DB, insertHead, onConflict string, batch [][]interface{}) error {
 	if len(batch) == 0 {
 		return nil
@@ -414,6 +466,27 @@ func executeBatch(db *sql.DB, insertHead, onConflict string, batch [][]interface
 		args = append(args, row...)
 	}
 	query := insertHead + strings.Join(tuples, ",") + onConflict
-	_, err := db.Exec(query, args...)
-	return err
+
+	const maxRetries = 6
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		_, err := db.Exec(query, args...)
+		if err == nil {
+			return nil
+		}
+		if !isRetryableDBError(err) {
+			return err
+		}
+		// Backoff exponencial: 10s, 20s, 40s, 80s, 160s, 320s
+		wait := time.Duration(1<<uint(attempt-1)) * 10 * time.Second
+		safePrintf("Conexão perdida (tentativa %d/%d), aguardando %v: %v\n", attempt, maxRetries, wait, err)
+		time.Sleep(wait)
+		// Aguarda o banco aceitar conexões novamente antes de tentar o INSERT
+		for pingAttempt := 1; pingAttempt <= 12; pingAttempt++ {
+			if pingErr := db.Ping(); pingErr == nil {
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+	}
+	return fmt.Errorf("lote falhou após %d tentativas de reconexão", maxRetries)
 }
