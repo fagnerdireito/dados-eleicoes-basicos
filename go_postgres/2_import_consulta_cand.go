@@ -134,7 +134,7 @@ func main() {
 		log.Fatalf("Erro ao configurar tabela: %v", err)
 	}
 
-	files, err := candFindCSVFiles("dados")
+	files, err := candFindCSVFiles(filepath.Join(candRepoDataRoot(), "dados"))
 	if err != nil {
 		log.Fatalf("Erro ao buscar arquivos CSV: %v", err)
 	}
@@ -185,6 +185,20 @@ func main() {
 	} else {
 		fmt.Println("\nProcessamento concluído com sucesso.")
 	}
+}
+
+func candRepoDataRoot() string {
+	for _, root := range []string{".", ".."} {
+		bweb := filepath.Join(root, "bweb")
+		dados := filepath.Join(root, "dados")
+		if st, err := os.Stat(bweb); err == nil && st.IsDir() {
+			return root
+		}
+		if st, err := os.Stat(dados); err == nil && st.IsDir() {
+			return root
+		}
+	}
+	return "."
 }
 
 func candFindCSVFiles(root string) ([]string, error) {
@@ -310,7 +324,6 @@ func candProcessFile(db *sql.DB, path string) error {
 	insertHead := fmt.Sprintf(`INSERT INTO "%s" (%s) VALUES `,
 		candTableName, strings.Join(candQuoteColumns(targetCols), ","))
 	onConflict := fmt.Sprintf(` ON CONFLICT (%s) DO NOTHING`, conflictCols)
-	placeholder := "(" + strings.Repeat("?,", len(targetCols)-1) + "?)"
 
 	var batch [][]interface{}
 
@@ -318,7 +331,7 @@ func candProcessFile(db *sql.DB, path string) error {
 		if len(batch) == 0 {
 			return nil
 		}
-		if err := candExecuteBatch(db, insertHead, onConflict, placeholder, batch); err != nil {
+		if err := candExecuteBatch(db, insertHead, onConflict, batch); err != nil {
 			return err
 		}
 		batch = batch[:0]
@@ -363,22 +376,24 @@ func candProcessFile(db *sql.DB, path string) error {
 	return nil
 }
 
-func candExecuteBatch(db *sql.DB, insertHead, onConflict, placeholder string, batch [][]interface{}) error {
+func candExecuteBatch(db *sql.DB, insertHead, onConflict string, batch [][]interface{}) error {
 	if len(batch) == 0 {
 		return nil
 	}
-
-	placeholders := make([]string, len(batch))
-	for i := range batch {
-		placeholders[i] = placeholder
-	}
-	query := insertHead + strings.Join(placeholders, ",") + onConflict
-
-	args := make([]interface{}, 0, len(batch)*len(batch[0]))
+	nCols := len(batch[0])
+	var tuples []string
+	argPos := 1
+	args := make([]interface{}, 0, len(batch)*nCols)
 	for _, row := range batch {
+		cells := make([]string, len(row))
+		for i := range row {
+			cells[i] = fmt.Sprintf("$%d", argPos)
+			argPos++
+		}
+		tuples = append(tuples, "("+strings.Join(cells, ",")+")")
 		args = append(args, row...)
 	}
-
+	query := insertHead + strings.Join(tuples, ",") + onConflict
 	_, err := db.Exec(query, args...)
 	return err
 }

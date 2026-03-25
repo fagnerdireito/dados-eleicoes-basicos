@@ -132,9 +132,11 @@ ORDER BY 1
 		return
 	}
 
-	const ins = `INSERT INTO public.estados (id, sigla, "NM_ESTADO") VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`
+	// id é a chave IBGE. Não apaga linhas (FK municipios.estado_id). Conflito só em sigla: avisa e segue.
+	const ins = `INSERT INTO public.estados (id, sigla, "NM_ESTADO") VALUES ($1, $2, $3)
+ON CONFLICT (id) DO UPDATE SET sigla = EXCLUDED.sigla, "NM_ESTADO" = EXCLUDED."NM_ESTADO"`
 
-	var inserted, skippedUnknown, skippedBad int64
+	var inserted, skippedUnknown, skippedBad, skippedConflict int64
 	for _, sg := range siglas {
 		if len(sg) != 2 {
 			skippedBad++
@@ -147,6 +149,11 @@ ORDER BY 1
 		}
 		res, err := db.Exec(ins, info.ID, sg, info.Nome)
 		if err != nil {
+			if strings.Contains(err.Error(), "23505") {
+				log.Printf("estado %s (id IBGE %d): conflito de unicidade (sigla ou id) — já existe outra linha; ignorando", sg, info.ID)
+				skippedConflict++
+				continue
+			}
 			log.Fatalf("inserir estado %s: %v", sg, err)
 		}
 		aff, _ := res.RowsAffected()
@@ -163,6 +170,9 @@ ORDER BY 1
 	}
 	if skippedBad > 0 {
 		fmt.Printf("Valores SG_UF ignorados (≠ 2 caracteres após trim): %d\n", skippedBad)
+	}
+	if skippedConflict > 0 {
+		fmt.Printf("Estados não aplicados (conflito PK/UNIQUE com dados existentes): %d\n", skippedConflict)
 	}
 	fmt.Printf("Total de linhas em public.estados: %d\n", total)
 }

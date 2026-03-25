@@ -119,7 +119,7 @@ func main() {
 					OR cc."SG_UE" = bu."SG_UF"
 					OR cc."SG_UE" = 'BR'
 				)
-			WHERE bu."ANO_ELEICAO" = ? AND bu."CD_MUNICIPIO" = ?
+			WHERE bu."ANO_ELEICAO" = $1 AND bu."CD_MUNICIPIO" = $2
 			GROUP BY bu."ANO_ELEICAO", bu."CD_MUNICIPIO", bu."NM_MUNICIPIO", bu."CD_ELEICAO", bu."NR_TURNO", bu."SG_UF", bu."CD_CARGO_PERGUNTA", bu."NR_VOTAVEL", bu."NM_VOTAVEL"
 		) sub
 		WHERE NOT EXISTS (

@@ -96,7 +96,7 @@ func main() {
 			bu."NM_MUNICIPIO", bu."CD_MUNICIPIO", bu."CD_ELEICAO", bu."NR_TURNO",
 			bu."SG_UF", MAX(bu."DS_CARGO_PERGUNTA"), bu."CD_CARGO_PERGUNTA"
 		FROM "boletim_de_urna" bu
-		WHERE bu."ANO_ELEICAO" = ? AND bu."CD_MUNICIPIO" = ?
+		WHERE bu."ANO_ELEICAO" = $1 AND bu."CD_MUNICIPIO" = $2
 		GROUP BY bu."ANO_ELEICAO", bu."CD_MUNICIPIO", bu."NM_MUNICIPIO", bu."CD_ELEICAO", bu."NR_TURNO", bu."SG_UF", bu."CD_CARGO_PERGUNTA", bu."NR_PARTIDO", bu."SG_PARTIDO", bu."NM_PARTIDO"`
 
 	start := time.Now()
