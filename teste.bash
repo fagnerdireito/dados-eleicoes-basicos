@@ -341,3 +341,9 @@ bweb_1t_MA_091020241636      bweb_1t_RO_181120201549.csv  bweb_2t_BA_28102024104
 bweb_1t_MA_181120201549.csv  bweb_1t_RR_091020241636      bweb_2t_BA_301120201245.csv  bweb_2t_PI_301120201245.csv
 bweb_1t_MG_091020241636      bweb_1t_RR_181120201549.csv  bweb_2t_CE_281020241046      bweb_2t_PR_281020241046
 bweb_1t_MG_181120201549.csv  bweb_1t_RS_091020241636      bweb_2t_CE_301120201245.csv  bweb_2t_PR_301120201245.csv
+
+
+
+go run 8_import_local_votacao.go
+
+go run 9_import_votos_candidatos.go
