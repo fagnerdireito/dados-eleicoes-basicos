@@ -1,0 +1,585 @@
+version: 1
+plan:
+  name: 'app-python-minimax - Streamlit Election Dashboard'
+  max_concurrency: 10
+  max_consecutive_failures: 2
+  max_cycles: 15
+
+tasks:
+  - id: base-infra
+    title: 'Criar infraestrutura base (db.py, queries.py, requirements.txt, __init__.py)'
+    prompt: |
+      Criar a estrutura base do projeto Streamlit para análise de dados eleitorais.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      Estrutura de pastas já criada:
+      - ui/ (vazio)
+      - db/ (vazio)
+      - config/ (vazio)
+      - assets/ (vazio)
+      
+      ## 1. requirements.txt
+      Criar arquivo com dependências:
+      ```
+      streamlit>=1.39
+      pandas>=2.2
+      pyarrow>=15
+      sqlalchemy>=2
+      psycopg2-binary>=2.9
+      plotly>=5.20
+      python-dotenv>=1.0
+      babel>=2.14
+      ```
+      
+      ## 2. db/__init__.py
+      Exportar funções de conexão.
+      
+      ## 3. db/connection.py
+      - Função get_engine() com cache @st.cache_resource
+      - Função run_df(sql, params) para executar queries e retornar DataFrames
+      - Função table_exists(name) para verificar tabelas
+      - Função is_municipal(ano) - retorna True se ano é municipal (2020, 2024, etc.)
+      - Usar connection string: postgresql://fagnerdossgoncalves@127.0.0.1:5432/eleicoes
+      - Usar sqlachemy com text() para queries parametrizadas
+      
+      ## 4. queries/__init__.py
+      Exportar todas as funções de query.
+      
+      ## 5. queries/catalogos.py
+      Funções para listar opções dos filtros:
+      - listar_anos() - DISTINCT ANO_ELEICAO de boletim_de_urna
+      - listar_ufs(ano) - DISTINCT SG_UF filtrado por ano
+      - listar_municipios(ano, uf) - DISTINCT CD_MUNICIPIO, NM_MUNICIPIO
+      - listar_cargos(ano, uf, cd_municipio) - DISTINCT CD_CARGO_PERGUNTA, DS_CARGO_PERGUNTA
+      - listar_candidatos(ano, uf, cd_municipio, cd_cargo) - NR_VOTAVEL, NM_VOTAVEL, SG_PARTIDO, SUM(QT_VOTOS)
+      Todas cacheadas com @st.cache_data(ttl=3600)
+      
+      ## 6. queries/abas.py
+      Funções para dados de cada aba:
+      - resumo_candidato_municipio(ano, uf, cd_municipio, cd_cargo, nr_votavel) - métricas principais
+      - votos_candidato_por_municipio(ano, uf, cd_cargo, nr_votavel) - para mapa do estado
+      - votos_candidato_por_local(ano, uf, cd_municipio, cd_cargo, nr_votavel) - para mapa de bolhas
+      - ranking_municipio(ano, uf, cd_municipio, cd_cargo) - top candidatos no município
+      - sintese_territorial(ano, uf, cd_municipio, cd_cargo) - candidatos por locales liderados
+      - top_candidatos_no_local(ano, uf, cd_municipio, cd_cargo, nr_local) - ranking em local específico
+      - votos_por_bairro(ano, uf, cd_municipio, cd_cargo, nr_votavel) - drill-down por bairro
+      - perfil_eleitorado_uf(ano, uf) - dados de abstenção por idade e escolaridade (se disponível)
+      
+      IMPORTANTE: Para dados inexistentes, criar placeholders que retornam DataFrames vazios
+      com estrutura correta mas sem dados, e adicionar comentários sobre como obter os dados.
+      
+      ## 7. ui/__init__.py
+      Exportar módulos de cada tab.
+      
+      ## 8. ui/components.py
+      Componentes visuais reutilizáveis:
+      - fmt_int(n) - formata números com separador de milhar brasileiro
+      - fmt_pct(n) - formata percentual com vírgula
+      - kpi(label, value, hint) - card de métrica
+      - section_title(title, subtitle) - título de seção com barra azul
+      - bar_row(name, party, votos, pct, rank) - linha de ranking com barra de progresso
+      
+      ## 9. ui/utils.py
+      Funções utilitárias:
+      - render_placeholder(message, suggestion) - renderiza mensagem de dados não disponíveis
+      - check_data_availability(tab_name) - verifica se dados existem para a aba
+      
+      ## 10. config/__init__.py
+      Configurações do projeto.
+      
+      ## 11. config/settings.py
+      - Constantes de cores (azul institucional)
+      - Configurações de layout
+      - Mensagens de placeholder para dados faltantes
+      
+      ## 12. README.md
+      Documentação básica do projeto com instruções de instalação e uso.
+      
+      Use a estrutura de queries do app-python original como referência, mas desacople completamente.
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Infraestrutura base - módulos internos, não entrega direta ao usuário'
+    timeout_ms: 600000
+
+  - id: tab-sumario
+    title: 'Criar Tab 1: Sumário (índice do relatório)'
+    prompt: |
+      Criar a aba "Sumário" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_sumario.py
+      Classe TabSumario com método render(ctx)
+      
+      O sumário é o índice/navegação do relatório com 9 seções:
+      1. Resumo no município
+      2. Perfil do electorado (estado)
+      3. Onde estão os votos no estado
+      4. Onde estão os votos no município
+      5. Ranking geral no município
+      6. Síntese territorial
+      7. Card local de votação
+      8. Votos por bairro
+      
+      Layout:
+      - Título "Sumário" com barra lateral azul
+      - Subtítulo "Índice de páginas — 9 seções"
+      - Layout em 2 colunas com os títulos das seções
+      - Cada seção com número da página e nome
+      - Usar ícones ou emojis para distinguir seções
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: tab-resumo-municipio
+    title: 'Criar Tab 2: Resumo município (KPIs do candidato)'
+    prompt: |
+      Criar a aba "Resumo no município" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_resumo_municipio.py
+      Classe TabResumoMunicipio com método render(ctx)
+      
+      Baseado na imagem de referência: dashboard KPIs no município de Costa Marques (RO)
+      
+      Layout em cards:
+      1. Card "Votação do candidato":
+         - Número de votos (grande, azul)
+         - Percentual dos votos válidos do município
+      2. Card "Posição geral no município":
+         - Posição (1º, 2º, etc.)
+         - Total de candidatos ao cargo
+      3. Card "Liderança nos locais":
+         - Número de locais onde ficou em 1º
+         - Total de locais analisados
+      4. Card "Locais de votação analisados":
+         - Total de locais
+         - Número de bairros
+      
+      Composição dos votos (seção inferior):
+      - Votos Válidos (azul)
+      - Votos em Branco
+      - Votos Nulos
+      - Abstenções
+      - Taxa de Comparecimento (azul)
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+      Usar queries de resumo_candidato_municipio do módulo queries/abas.py
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: tab-perfil-eleitorado
+    title: 'Criar Tab 3: Perfil electorado (abstenção por idade/escolaridade)'
+    prompt: |
+      Criar a aba "Perfil do electorado" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_perfil_eleitorado.py
+      Classe TabPerfilEleitorado com método render(ctx)
+      
+      Baseado na imagem de referência: dashboard com 3 colunas para RO
+      
+      Layout:
+      1. Coluna esquerda - KPIs:
+         - Comparecimento (UF): percentual + número de eleitores
+         - Abstenção (UF): percentual + número de eleitores
+      
+      2. Coluna central - Gráfico de barras horizontal:
+         - Título: "Abstenção por faixa etária"
+         - Barras horizontais com percentages
+         - Faixas: 16-17, 18-20, 21-24, 25-29, 30-34, 35-39, 40-44, 45-49, 50-54, 55-59, 60-64, 65-69, 70-74, 75-79, 80-84, 85-89, 90-94, 95-99, 100+
+      
+      3. Coluna direita - Gráfico de barras horizontal:
+         - Título: "Abstenção por escolaridade"
+         - Níveis: Analfabeto, Fundamental Incompleto, Fundamental Completo, Médio Incompleto, Médio Completo, Superior Incompleto, Superior Completo
+      
+      NOTA: Os dados de abstenção por idade e escolaridade podem não existir diretamente no banco.
+      Se não existirem, usar placeholder com mensagem indicando que esses dados precisam ser
+      importados dos arquivos CSV do TSE (perfil do electorado).
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: tab-votos-estado
+    title: 'Criar Tab 4: Votos no estado (mapa coroplético + ranking)'
+    prompt: |
+      Criar a aba "Onde estão os votos no estado" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_votos_estado.py
+      Classe TabVotosEstado com método render(ctx)
+      
+      Baseado na imagem de referência: mapa coroplético de RO com ranking
+      
+      Layout:
+      1. Título: "Onde estão os votos no estado"
+      2. Subtítulo: "Votação de {candidato} por município – {UF}"
+      
+      2 colunas:
+      - Esquerda: Mapa do estado (Placeholder - requer geobr e coordenadas)
+        * Mapa coroplético colorido por intensidade de votos
+        * Cada município com label do número de votos
+        * Destacar município selecionado (se cd_municipio)
+        * Se geobr não disponível, usar tabela simples como fallback
+      
+      - Direita: "Top municípios (votos do candidato)"
+        * Lista numerada 1-30
+        * Município + número de votos
+        * Ordenado por votos DESC
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+      Usar query votos_candidato_por_municipio de queries/abas.py
+      
+      Se dados de coordenadas/mapa não disponíveis, criar placeholder com instrução de como obter.
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: tab-votos-municipio
+    title: 'Criar Tab 5: Votos no município (mapa de bolhas por local)'
+    prompt: |
+      Criar a aba "Onde estão os votos no município" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_votos_municipio.py
+      Classe TabVotosMunicipio com método render(ctx)
+      
+      Baseado na imagem de referência: mapa de bolhas em Costa Marques
+      
+      Layout:
+      1. Título: "Onde estão os votos no município"
+      2. Subtítulo: "Votação de {candidato} por local — {municipio}"
+      
+      2 colunas:
+      - Esquerda: Mapa de símbolos proporcionais (bolhas)
+        * Contorno do município
+        * Bolhas azuis posicionadas por GPS
+        * Tamanho da bolha proporcional aos votos
+        * Se NR_LATITUDE/NR_LONGITUDE não disponíveis, mostrar mensagem de placeholder
+      
+      - Direita: "Top locais (votos do candidato)"
+        * Lista ordenada por votos
+        * Nome do local (escola) + número de votos
+      
+      NOTA: Esta aba requer dados de local_votacao com coordenadas GPS (NR_LATITUDE, NR_LONGITUDE).
+      Se os dados não existirem, criar placeholder indicando necessidade de importar local_votacao.
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+      Usar query votos_candidato_por_local de queries/abas.py
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: tab-ranking
+    title: 'Criar Tab 6: Ranking município (comparativo entre anos)'
+    prompt: |
+      Criar a aba "Ranking geral no município" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_ranking_municipio.py
+      Classe TabRankingMunicipio com método render(ctx)
+      
+      Baseado na imagem de referência: comparação 2018 vs 2022
+      
+      Layout:
+      1. Título: "Ranking geral no município"
+      2. Subtítulo: "Top 10 candidatos mais votados"
+      
+      Tabela comparativa lado a lado:
+      - Coluna esquerda: Ano atual (ctx['ano'])
+      - Coluna direita: Ano anterior (ctx['ano'] - 4, se existir)
+      
+      Para cada ano:
+      - Posição no ranking (1º a 10º)
+      - Nome do candidato (bold)
+      - Partido
+      - Número de votos
+      - Percentual
+      
+      Destacar 1º lugar com fundo azul claro
+      
+      Se ano anterior não tiver dados, mostrar apenas coluna do ano atual com mensagem.
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+      Usar query ranking_municipio de queries/abas.py
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: tab-sintese
+    title: 'Criar Tab 7: Síntese territorial (locais liderados por candidato)'
+    prompt: |
+      Criar a aba "Síntese territorial" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_sintese_territorial.py
+      Classe TabSinteseTerritorial com método render(ctx)
+      
+      Baseado na imagem de referência: ranking de candidatos por locales liderados
+      
+      Layout:
+      1. Título: "Síntese territorial"
+      2. Subtítulo: "Locais liderados por candidato"
+      3. Totalizador: "{n} locais" no canto superior direito
+      
+      Leaderboard/tabela de classificação:
+      - Lista ordenada por quantidade de locais liderados (DESC)
+      - Colunas: Posição, Candidato (com partido), Locais liderados
+      - Destacar candidato foco (ctx['nm_candidato']) com cor azul
+      - Mostrar ranking de todos os candidatos, não só top N
+      
+      Lógica:
+      - Para cada candidato, contar em quantos locais de votação ficou em 1º lugar
+      - Ordenar por este count DESC
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+      Usar query sintese_territorial de queries/abas.py
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: tab-card-local
+    title: 'Criar Tab 8: Card local (ranking em local específico)'
+    prompt: |
+      Criar a aba "Card local de votação" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_card_local.py
+      Classe TabCardLocal com método render(ctx)
+      
+      Baseado na imagem de referência: ranking no local Angelina Dos Anjos - Escola Estadual
+      
+      Layout:
+      1. Seletor de local de votação (dropdown)
+      2. Card do local selecionado:
+         - Nome do local (título)
+         - Estatísticas: votos válidos, brancos, nulos
+      3. Tabela "Top 10 no local":
+         - Posição, Candidato (com partido), Votos, %
+         - Destacar candidato foco
+      4. Footer destacado:
+         - "Desempenho de {candidato foco}"
+         - Posição no local, votos, percentual
+      
+      Se não houver locais ou dados, mostrar placeholder.
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+      Usar queries de locales_do_municipio e top_candidatos_no_local de queries/abas.py
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: tab-votos-bairro
+    title: 'Criar Tab 9: Votos por bairro (drill-down territorial)'
+    prompt: |
+      Criar a aba "Votos por bairro" do dashboard eleitoral.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: ui/tab_votos_bairro.py
+      Classe TabVotosBairro com método render(ctx)
+      
+      Baseado na imagem de referência: drill-down por bairro/local
+      
+      Layout:
+      3 tabelas empilhadas (níveis de drill-down):
+      
+      1. "Resumo por Município":
+         - Colunas: Município, Ano, Votos
+         - Uma linha com totais do candidato no município
+      
+      2. "Detalhamento por Bairro":
+         - Colunas: Bairro, Ano, Votos, Candidato
+         - Lista de bairros com votos do candidato
+         - Totalizador no footer
+      
+      3. "Detalhamento por Local de Votação":
+         - Colunas: Local, Ano, Votos, Candidato
+         - Lista de locais (escolas) com votos do candidato
+         - Totalizador no footer
+      
+      Se dados de bairro não existirem em local_votacao, usar local como proxy.
+      Se dados não disponíveis, criar placeholder indicando necessidade de importar local_votacao.
+      
+      ctx contém: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+      Usar query votos_por_bairro de queries/abas.py
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Módulo UI interno - integração feita no app-main'
+    timeout_ms: 300000
+
+  - id: app-main
+    title: 'Criar app.py principal com tabs e filtros'
+    prompt: |
+      Criar o arquivo app.py principal que assembla todas as abas.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: app.py
+      
+      Estrutura:
+      1. Configuração da página Streamlit
+         - page_title="Dossiê Eleitoral"
+         - page_icon="🗳️"
+         - layout="wide"
+         - initial_sidebar_state="collapsed"
+      
+      2. CSS customizado (embedded)
+         - Fonte e cores institucionais
+         - Estilo dos cards e métricas
+      
+      3. Header com logo/título
+         - "🗳️ Dossiê Eleitoral"
+         - Subtítulo explicativo
+      
+      4. Filtros globais (colunas):
+         - Selectbox Ano/Eleição
+         - Selectbox UF
+         - Selectbox Cidade (obrigatório em municipais, opcional em gerais)
+         - Selectbox Cargo
+         - Selectbox Candidato foco
+      
+      5. Sidebar:
+         - Botão "Limpar cache"
+         - Informações do banco de dados
+      
+      6. Tabs (9 abas):
+         - "1 · Sumário"
+         - "2 · Resumo município"
+         - "3 · Perfil electorado (UF)"
+         - "4 · Votos no estado"
+         - "5 · Votos no município"
+         - "6 · Ranking município"
+         - "7 · Síntese territorial"
+         - "8 · Card local"
+         - "9 · Votos por bairro"
+      
+      Cada tab chama o método render(ctx) do módulo correspondente.
+      
+      ctx é um dict com: ano, uf, cd_municipio, nm_municipio, cd_cargo, ds_cargo, nr_votavel, nm_candidato, municipal
+      
+      IMPORTANTE: Se ano selecionado não tiver dados em alguma tabela,
+      mostrar mensagem de placeholder indicando quais dados precisam ser importados.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Assembly final do app - integra todos os módulos desenvolvidos'
+    timeout_ms: 300000
+
+  - id: docs-data
+    title: 'Criar documentação sobre dados necessários e como obter do TSE'
+    prompt: |
+      Criar arquivo de documentação sobre dados eleitorais do TSE.
+      
+      Pasta de trabalho: /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python-minimax
+      
+      ## Arquivo: DADOS_TSE.md
+      
+      Conteúdo:
+      
+      # Dados Eleitorais do TSE - Guia de Importação
+      
+      ## Dados Disponíveis no Banco
+      O banco PostgreSQL 'eleicoes' já contém:
+      - `boletim_de_urna` (~4M linhas) - votos por seção
+      - `consulta_cand` (~463K linhas) - dados de candidatos
+      - `consulta_vagas` (~16K linhas) - vagas por cargo
+      - `estados` (~27 linhas) - lista de estados
+      - `local_votacao` (~599K linhas) - locais de votação (PRECISA VERIFICAR SE TEM DADOS)
+      - `municipios` (~5K linhas) - lista de municípios
+      - `votos_candidatos` (~138K linhas) - votos agregados por candidato
+      - `votos_partido` (~26K linhas) - votos agregados por partido
+      
+      ## Dados que Podem Faltar
+      1. **local_votacao** - Verificar se tem dados. Se vazio, importar de:
+         - https://dadosabertos.tse.jus.br/dataset/local-votacao
+         - Arquivo: localvotacao_{ano}.csv
+      
+      2. **Perfil do electorado** (abstenção por idade/escolaridade) - Não existe no banco atual.
+         Para obter:
+         - https://dadosabertos.tse.jus.br/dataset/perfil-eleitorado
+         - Criar nova tabela `perfil_eleitorado` com esses dados
+      
+      3. **Coordenadas GPS** - Verificar se local_votacao tem NR_LATITUDE/NR_LONGITUDE.
+         Sem isso, mapas de bolhas não funcionam.
+      
+      ## Como Importar Dados do TSE
+      
+      ### Opção 1: Usar scripts Go existentes
+      Pasta: ../go_postgres/
+      Scripts disponíveis:
+      - 1_import_boletim_urna.go
+      - 2_import_consulta_cand.go
+      - 3_import_consulta_vagas.go
+      - 4_create_table_votos_candidatos.go
+      - 5_create_table_votos_partido.go
+      - 6_import_municipio_tse_ibge.go
+      - 7_import_estados.go
+      - 8_import_local_votacao.go
+      
+      ### Opção 2: Scripts Python existentes
+      Pasta raiz: ../
+      Scripts:
+      - import_boletim_urna.py
+      - import_consulta_cand.py
+      - import_consulta_vagas.py
+      - create_table_votos_candidatos.py
+      - create_table_votos_partido.py
+      
+      ### Opção 3: Download direto do TSE
+      Portal: https://dadosabertos.tse.jus.br/
+      
+      Datasets necessários:
+      1. BU (Boletim de Urna) - voted votes by candidate/section
+      2. Consulta Cand - candidate information
+      3. Local Votação - voting locations with GPS coordinates
+      4. Perfil Eleitorado - voter demographics (optional, for future)
+      
+      ## Validação dos Dados
+      
+      Queries úteis para verificar:
+      ```sql
+      -- Verificar anos disponíveis
+      SELECT DISTINCT "ANO_ELEICAO" FROM boletim_de_urna ORDER BY 1;
+      
+      -- Verificar se local_votacao tem dados
+      SELECT COUNT(*) FROM local_votacao;
+      
+      -- Verificar coordenadas
+      SELECT COUNT(*) FROM local_votacao WHERE "NR_LATITUDE" NOT IN ('-1', '') AND "NR_LATITUDE" IS NOT NULL;
+      ```
+      
+      ## Placeholders Implementados
+      
+      O app já contém tratamento para dados faltantes:
+      - Se local_votacao vazio: mapas mostram tabela em vez de mapa
+      - Se coordenadas não existem: mostra lista em vez de bolhas
+      - Se ano anterior não existe: mostra só ano atual
+      - Se dados de perfil não existem: mostra mensagem explicativa
+    assigned_to: general
+    verified_by: ~
+    verify_skip_reason: 'Documentação complementar - informação de referência'
+    timeout_ms: 300000
+
