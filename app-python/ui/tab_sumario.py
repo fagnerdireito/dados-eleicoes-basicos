@@ -15,13 +15,13 @@ def render(ctx: dict) -> None:
 
     itens = [
         ("Resumo no município", "KPIs do candidato no município, posição geral, liderança em locais e composição dos votos."),
-        ("Perfil do eleitorado (UF)", "Comparecimento e abstenção por faixa etária e escolaridade — recorte por UF."),
-        ("Onde estão os votos no estado", "Mapa coroplético dos votos do candidato por município da UF."),
-        ("Onde estão os votos no município", "Mapa de bolhas por local de votação (precisa de coordenadas; só 2024)."),
+        ("Perfil do eleitorado (UF)", "Perfil do eleitorado por faixa etária e escolaridade — recorte por UF."),
+        ("Onde estão os votos no estado", "Mapa dos votos do candidato por município da UF."),
+        ("Onde estão os votos no município", "Mapa de bolhas por local de votação."),
         ("Ranking geral no município", "Top 10 candidatos no município comparando com a eleição anterior."),
         ("Síntese territorial", "Quantos locais cada candidato lidera dentro do município."),
         ("Votos por local de votação", "Top 10 candidatos por local + totais (válidos, brancos e nulos)."),
-        ("Votos por bairro", "Agregação por bairro/local via JOIN com local_votacao (só 2024)."),
+        ("Votos por bairro", "Agregação por bairro/local com local de votacao."),
     ]
     for i, (titulo, descricao) in enumerate(itens, start=2):
         st.markdown(

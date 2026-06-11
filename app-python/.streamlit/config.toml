@@ -9,3 +9,9 @@ font = "sans serif"
 [server]
 headless = true
 port = 8501
+
+# Esconde o menu hambúrguer + atalhos do "developer toolbar"
+# (incluindo `C` = Clear caches, que confundia com Cmd+C/Ctrl+C de copiar).
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false

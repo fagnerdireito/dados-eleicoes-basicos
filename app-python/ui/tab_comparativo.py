@@ -9,7 +9,14 @@ from db import table_exists
 from queries import comparativo_votos_territorio, listar_candidatos
 
 _CAND_COLORS = ("#1f6feb", "#ef4444", "#22c55e", "#f59e0b")
-_DIM_LABELS = {"zona": "Zona", "bairro": "Bairro", "secao": "Seção"}
+_DIM_LABELS = {
+    "zona": "Zona",
+    "bairro": "Bairro",
+    "secao": "Seção",
+    "local": "Local de votação",
+}
+# Dimensões que dependem de `local_votacao` (só 2024 hoje).
+_DIM_PRECISA_LOCAL_VOTACAO = {"bairro", "local"}
 
 
 def _cand_labels(cands: pd.DataFrame) -> dict[str, str]:
@@ -127,10 +134,13 @@ def _render_dimensao(
     dimensao: str,
 ) -> None:
     dim_label = _DIM_LABELS[dimensao]
-    if dimensao == "bairro" and (ctx["ano"] != 2024 or not table_exists("local_votacao")):
+    if dimensao in _DIM_PRECISA_LOCAL_VOTACAO and (
+        ctx["ano"] != 2024 or not table_exists("local_votacao")
+    ):
         st.warning(
-            "Dados de bairro exigem a tabela `local_votacao` (hoje carregada para **2024**). "
-            "Importe `eleitorado_local_votacao_<ANO>.zip` do TSE para outros anos."
+            f"Dados de {dim_label.lower()} exigem a tabela `local_votacao` "
+            "(hoje carregada para **2024**). Importe "
+            "`eleitorado_local_votacao_<ANO>.zip` do TSE para outros anos."
         )
         return
 
@@ -192,10 +202,14 @@ def render(ctx: dict) -> None:
     _render_cards(list(nrs), cands, labels)
 
     st.markdown("")
-    tab_zona, tab_bairro, tab_secao = st.tabs(["Zona", "Bairro", "Seção"])
+    tab_zona, tab_bairro, tab_local, tab_secao = st.tabs(
+        ["Zona", "Bairro", "Locais de votação", "Seção"]
+    )
     with tab_zona:
         _render_dimensao(ctx, nrs, labels, "zona")
     with tab_bairro:
         _render_dimensao(ctx, nrs, labels, "bairro")
+    with tab_local:
+        _render_dimensao(ctx, nrs, labels, "local")
     with tab_secao:
         _render_dimensao(ctx, nrs, labels, "secao")

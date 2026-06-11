@@ -624,6 +624,26 @@ def comparativo_votos_territorio(
             GROUP BY 1, b."NR_VOTAVEL"
             ORDER BY 1, votos DESC
         '''
+    elif dimensao == "local":
+        sql = f'''
+            SELECT COALESCE(
+                     NULLIF(TRIM(lv."NM_LOCAL_VOTACAO"), ''),
+                     'Local ' || b."NR_LOCAL_VOTACAO"
+                   ) AS territorio,
+                   b."NR_VOTAVEL" AS nr,
+                   MAX(b."NM_VOTAVEL") AS nm,
+                   SUM(b."QT_VOTOS"::bigint) AS votos
+            FROM boletim_de_urna b
+            JOIN local_votacao lv
+              ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
+             AND lv."SG_UF" = b."SG_UF"
+             AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
+             AND lv."NR_ZONA" = b."NR_ZONA"
+             AND lv."NR_SECAO" = b."NR_SECAO"
+            WHERE {' AND '.join(base_where)}
+            GROUP BY 1, b."NR_VOTAVEL"
+            ORDER BY 1, votos DESC
+        '''
     else:
         raise ValueError(f"Dimensão inválida: {dimensao}")
 

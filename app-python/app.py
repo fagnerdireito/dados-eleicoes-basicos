@@ -156,6 +156,11 @@ st.markdown(
         overflow: hidden !important;
       }
       @media print {
+        /* Esconde o botão Imprimir — o markup está num iframe do
+           components.html, então o seletor precisa pegar o wrapper
+           gerado pelo st.container(key="print-toolbar"). */
+        .st-key-print-toolbar,
+        .element-container:has(.st-key-print-toolbar),
         .print-toolbar,
         .print-page-btn,
         .element-container:has(.print-toolbar),
@@ -255,73 +260,82 @@ if LOGO_PATH.is_file():
         f'<img class="app-header-logo" src="data:image/png;base64,{encoded}" alt="Elegis">'
     )
 
-# Botão "Imprimir PDF" — usa components.html porque st.html() do Streamlit
+# Botão "Imprimir" — usa components.html porque st.html() do Streamlit
 # remove tags <script> por segurança, impedindo o listener de funcionar.
 # components.html renderiza num iframe que executa JS e pode chamar
-# window.parent.print() (a janela do navegador onde o usuário está).
-components.html(
-    """
-    <style>
-      :root { color-scheme: light; }
-      body { margin: 0; background: transparent; }
-      .print-toolbar {
-        display: flex;
-        justify-content: flex-end;
-        margin: 0;
-        padding: 0 4px;
-      }
-      .print-page-btn {
-        background: #1f6feb;
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        font-size: 0.9rem;
-        font-weight: 600;
-        cursor: pointer;
-        line-height: 1.2;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                     Helvetica, Arial, sans-serif;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-      }
-      .print-page-btn:hover { background: #1758c7; }
-      .print-page-btn:active { background: #154ba8; }
-      .print-page-btn svg { width: 1rem; height: 1rem; }
-    </style>
-    <div class="print-toolbar">
-      <button type="button" class="print-page-btn" id="dados-eleitorais-print-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="6 9 6 2 18 2 18 9"></polyline>
-          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-          <rect x="6" y="14" width="12" height="8"></rect>
-        </svg>
-        Imprimir PDF
-      </button>
-    </div>
-    <script>
-      (function () {
-        const btn = document.getElementById("dados-eleitorais-print-btn");
-        if (!btn) return;
-        btn.addEventListener("click", function () {
-          // O componente roda dentro de um iframe; subimos até o topo da janela
-          // do navegador (window.top) para acionar a impressão da página inteira.
-          try {
-            const w = window.top || window.parent || window;
-            w.focus();
-            w.print();
-          } catch (err) {
-            // Se o navegador bloquear cross-origin, imprime o próprio iframe.
-            window.print();
+# window.top.print() (a janela do navegador onde o usuário está).
+# Envolvido em um container com key="print-toolbar" para que o CSS
+# `@media print { .st-key-print-toolbar { display:none } }` esconda o
+# wrapper (incluindo o iframe) na hora de imprimir.
+with st.container(key="print-toolbar"):
+    components.html(
+        """
+        <style>
+          :root { color-scheme: light; }
+          html, body { margin: 0; background: transparent; }
+          .print-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin: 0;
+            padding: 0 4px;
           }
-        });
-      })();
-    </script>
-    """,
-    height=56,
-)
+          .print-page-btn {
+            background: #1f6feb;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            line-height: 1.2;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                         Helvetica, Arial, sans-serif;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+          }
+          .print-page-btn:hover { background: #1758c7; }
+          .print-page-btn:active { background: #154ba8; }
+          .print-page-btn svg { width: 1rem; height: 1rem; }
+          /* Quando a impressão for disparada a partir do iframe, escondemos
+             o próprio botão para não vazar no preview. */
+          @media print {
+            html, body, .print-toolbar, .print-page-btn { display: none !important; }
+          }
+        </style>
+        <div class="print-toolbar">
+          <button type="button" class="print-page-btn" id="dados-eleitorais-print-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            Imprimir
+          </button>
+        </div>
+        <script>
+          (function () {
+            const btn = document.getElementById("dados-eleitorais-print-btn");
+            if (!btn) return;
+            btn.addEventListener("click", function () {
+              // O componente roda dentro de um iframe; subimos até o topo da
+              // janela (window.top) para acionar a impressão da página inteira.
+              try {
+                const w = window.top || window.parent || window;
+                w.focus();
+                w.print();
+              } catch (err) {
+                // Se o navegador bloquear cross-origin, imprime o próprio iframe.
+                window.print();
+              }
+            });
+          })();
+        </script>
+        """,
+        height=56,
+    )
 
 st.markdown(
     f"""
