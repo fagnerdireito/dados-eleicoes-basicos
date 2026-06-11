@@ -85,6 +85,24 @@ st.markdown(
         line-height: 1.35;
       }
 
+      .print-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 0.5rem;
+      }
+      .print-page-btn {
+        background: #1f6feb;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        line-height: 1.2;
+      }
+      .print-page-btn:hover { background: #1758c7; }
+
       /* Abas — cartões brancos, ativa em azul; no mobile quebram linha e ficam arredondadas */
       div[data-testid="stTabs"] [data-baseweb="tab-list"] {
         display: flex;
@@ -137,6 +155,16 @@ st.markdown(
         overflow: hidden !important;
       }
       @media print {
+        .print-toolbar,
+        .print-page-btn,
+        .element-container:has(.print-toolbar),
+        [data-testid="stHtml"]:has(.print-toolbar) {
+          display: none !important;
+          height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+        }
         header[data-testid="stHeader"],
         section[data-testid="stSidebar"],
         footer { display: none !important; }
@@ -225,6 +253,28 @@ if LOGO_PATH.is_file():
     logo_html = (
         f'<img class="app-header-logo" src="data:image/png;base64,{encoded}" alt="Elegis">'
     )
+
+st.html(
+    """
+    <div class="print-toolbar">
+      <button type="button" class="print-page-btn" id="dados-eleitorais-print-btn">
+        Imprimir PDF
+      </button>
+    </div>
+    <script>
+      (function () {
+        const btn = document.getElementById("dados-eleitorais-print-btn");
+        if (!btn || btn.dataset.bound) return;
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", function () {
+          const target = window.parent && window.parent !== window ? window.parent : window;
+          target.focus();
+          target.print();
+        });
+      })();
+    </script>
+    """,
+)
 
 st.markdown(
     f"""

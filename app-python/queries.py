@@ -10,6 +10,77 @@ from db import run_df
 
 TTL = 3600
 
+
+# ---------------------------------------------------------------------------
+# Aba "Perfil do eleitorado" (UF)
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=TTL, show_spinner=False)
+def turnout_uf(ano: int, uf: str) -> dict:
+    """Comparecimento e abstenção totais da UF (a partir do boletim de urna).
+
+    Agrega por seção distinta (CD_MUNICIPIO+NR_ZONA+NR_SECAO) — QT_APTOS,
+    QT_COMPARECIMENTO e QT_ABSTENCOES são repetidos por candidato no boletim.
+    """
+    df = run_df(
+        '''
+        SELECT SUM("QT_APTOS"::bigint)          AS aptos,
+               SUM("QT_COMPARECIMENTO"::bigint) AS comparec,
+               SUM("QT_ABSTENCOES"::bigint)     AS abstenc
+        FROM (
+          SELECT DISTINCT "CD_MUNICIPIO", "NR_ZONA", "NR_SECAO",
+                          "QT_APTOS", "QT_COMPARECIMENTO", "QT_ABSTENCOES"
+          FROM boletim_de_urna
+          WHERE "ANO_ELEICAO" = :ano AND "SG_UF" = :uf
+        ) s
+        ''',
+        {"ano": str(ano), "uf": uf},
+    )
+    if df.empty:
+        return {"aptos": 0, "comparec": 0, "abstenc": 0, "pct_comparec": 0.0, "pct_abstenc": 0.0}
+    aptos = int(df["aptos"].iloc[0] or 0)
+    comparec = int(df["comparec"].iloc[0] or 0)
+    abstenc = int(df["abstenc"].iloc[0] or 0)
+    return {
+        "aptos": aptos,
+        "comparec": comparec,
+        "abstenc": abstenc,
+        "pct_comparec": (comparec / aptos * 100) if aptos else 0.0,
+        "pct_abstenc": (abstenc / aptos * 100) if aptos else 0.0,
+    }
+
+
+@st.cache_data(ttl=TTL, show_spinner=False)
+def perfil_faixa_etaria(ano: int, uf: str) -> pd.DataFrame:
+    """Eleitorado por faixa etária na UF — ordenado pela própria faixa (idade asc)."""
+    return run_df(
+        '''
+        SELECT COALESCE(NULLIF("DS_FAIXA_ETARIA", '#NULO#'), 'Não informado') AS label,
+               SUM(NULLIF("QT_ELEITORES_PERFIL", '')::bigint) AS eleitores
+        FROM perfil_eleitorado
+        WHERE "ANO_ELEICAO" = :ano AND "SG_UF" = :uf
+        GROUP BY 1
+        ORDER BY MIN(NULLIF("CD_FAIXA_ETARIA", '')::int) NULLS LAST
+        ''',
+        {"ano": str(ano), "uf": uf},
+    )
+
+
+@st.cache_data(ttl=TTL, show_spinner=False)
+def perfil_escolaridade(ano: int, uf: str) -> pd.DataFrame:
+    """Eleitorado por escolaridade na UF — ordenado por nº de eleitores DESC."""
+    return run_df(
+        '''
+        SELECT COALESCE(NULLIF("DS_GRAU_ESCOLARIDADE", '#NULO#'), 'Não informado') AS label,
+               SUM(NULLIF("QT_ELEITORES_PERFIL", '')::bigint) AS eleitores
+        FROM perfil_eleitorado
+        WHERE "ANO_ELEICAO" = :ano AND "SG_UF" = :uf
+        GROUP BY 1
+        ORDER BY eleitores DESC
+        ''',
+        {"ano": str(ano), "uf": uf},
+    )
+
 # ---------------------------------------------------------------------------
 # Catálogos para os filtros globais
 # ---------------------------------------------------------------------------
