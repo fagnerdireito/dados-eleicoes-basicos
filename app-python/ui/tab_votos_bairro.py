@@ -24,10 +24,12 @@ def render(ctx: dict) -> None:
         )
 
     df_mun = votos_candidato_por_municipio(
-        ctx["ano"], ctx["uf"], ctx["cd_cargo"], ctx["nr_votavel"]
+        ctx["ano"],
+        ctx["uf"],
+        ctx["cd_cargo"],
+        ctx["nr_votavel"],
+        ctx.get("cd_municipio"),
     )
-    if ctx["cd_municipio"]:
-        df_mun = df_mun[df_mun["cd"] == ctx["cd_municipio"]]
     if not df_mun.empty:
         total = int(df_mun["votos"].sum())
         st.markdown("##### Município")

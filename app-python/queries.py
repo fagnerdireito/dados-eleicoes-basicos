@@ -207,11 +207,25 @@ def resumo_candidato_municipio(
 
 @st.cache_data(ttl=TTL, show_spinner=False)
 def votos_candidato_por_municipio(
-    ano: int, uf: str, cd_cargo: str, nr_votavel: str
+    ano: int,
+    uf: str,
+    cd_cargo: str,
+    nr_votavel: str,
+    cd_municipio: Optional[str] = None,
 ) -> pd.DataFrame:
     """Inclui código IBGE (via JOIN com municipio_tse_ibge) para o coroplético."""
+    where = [
+        'b."ANO_ELEICAO" = :ano',
+        'b."SG_UF" = :uf',
+        'b."CD_CARGO_PERGUNTA" = :cargo',
+        'b."NR_VOTAVEL" = :nr',
+    ]
+    params: dict = {"ano": str(ano), "uf": uf, "cargo": cd_cargo, "nr": nr_votavel}
+    if cd_municipio:
+        where.append('b."CD_MUNICIPIO" = :cd')
+        params["cd"] = cd_municipio
     return run_df(
-        '''
+        f'''
         SELECT b."CD_MUNICIPIO" AS cd,
                MAX(b."NM_MUNICIPIO") AS nm,
                MAX(m.cd_municipio_ibge) AS cd_ibge,
@@ -220,12 +234,11 @@ def votos_candidato_por_municipio(
         LEFT JOIN municipio_tse_ibge m
           ON m.sg_uf = b."SG_UF"
          AND m.cd_municipio_tse = b."CD_MUNICIPIO"
-        WHERE b."ANO_ELEICAO" = :ano AND b."SG_UF" = :uf
-          AND b."CD_CARGO_PERGUNTA" = :cargo AND b."NR_VOTAVEL" = :nr
+        WHERE {' AND '.join(where)}
         GROUP BY b."CD_MUNICIPIO"
         ORDER BY votos DESC
         ''',
-        {"ano": str(ano), "uf": uf, "cargo": cd_cargo, "nr": nr_votavel},
+        params,
     )
 
 
