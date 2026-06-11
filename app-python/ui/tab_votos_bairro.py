@@ -11,11 +11,7 @@ def render(ctx: dict) -> None:
     section_title("Votos por bairro", f"Agregação por bairro/local — {ctx['nm_candidato']}")
 
     if ctx["ano"] != 2024 or not table_exists("local_votacao"):
-        st.warning(
-            "Os dados de bairro vêm da tabela `local_votacao`, que hoje só está "
-            "carregada para **2024**. Para outros anos, importe "
-            "`eleitorado_local_votacao_<ANO>.zip` do TSE."
-        )
+        st.warning("Dados não encontrados para este filtro.")
         return
 
     if not ctx["cd_municipio"]:
