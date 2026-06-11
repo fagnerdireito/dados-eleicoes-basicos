@@ -100,17 +100,21 @@ def _render_tabela(
         )
     head += "</tr>"
 
+    # Itera com itertuples renomeando para acesso posicional — colunas como
+    # "10_votos" começam com dígito e o pandas troca por nomes inválidos no
+    # namedtuple; por isso acessamos via __getitem__ no dict gerado por _asdict.
     body = ""
-    for r in wide.itertuples(index=False):
+    for raw in wide.itertuples(index=False, name=None):
+        row = dict(zip(wide.columns, raw))
         body += (
             "<tr style='border-bottom:1px solid #eef1f5'>"
             f"<td style='padding:0.55rem 0.75rem;font-weight:600;color:#0b2545'>"
-            f"{r.territorio}</td>"
+            f"{row['territorio']}</td>"
         )
         for i, nr in enumerate(nrs):
             color = _CAND_COLORS[i % len(_CAND_COLORS)]
-            votos = getattr(r, f"{nr}_votos", 0)
-            pct = getattr(r, f"{nr}_pct", 0.0)
+            votos = int(row.get(f"{nr}_votos", 0) or 0)
+            pct = float(row.get(f"{nr}_pct", 0.0) or 0.0)
             body += (
                 f"<td style='padding:0.55rem 0.75rem;text-align:right'>"
                 f"<div style='font-weight:700;color:{color}'>{fmt_int(votos)}</div>"
