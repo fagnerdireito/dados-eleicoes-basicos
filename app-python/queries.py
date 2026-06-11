@@ -339,7 +339,7 @@ def sintese_territorial(
 
 
 # ---------------------------------------------------------------------------
-# Aba "Card local de votação"
+# Aba "Votos por local de votação"
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=TTL, show_spinner=False)
@@ -479,3 +479,81 @@ def votos_por_local_candidato(
         ''',
         {"ano": str(ano), "uf": uf, "cd": cd_municipio, "cargo": cd_cargo, "nr": nr_votavel},
     )
+
+
+# ---------------------------------------------------------------------------
+# Aba "Comparativo de candidatos" (zona / bairro / seção)
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=TTL, show_spinner=False)
+def comparativo_votos_territorio(
+    ano: int,
+    uf: str,
+    cd_municipio: str,
+    cd_cargo: str,
+    nrs: tuple[str, ...],
+    dimensao: str,
+) -> pd.DataFrame:
+    """Votos dos candidatos selecionados agregados por zona, bairro ou seção."""
+    if not nrs:
+        return pd.DataFrame()
+
+    base_where = [
+        'b."ANO_ELEICAO" = :ano',
+        'b."SG_UF" = :uf',
+        'b."CD_MUNICIPIO" = :cd',
+        'b."CD_CARGO_PERGUNTA" = :cargo',
+        'b."NR_VOTAVEL" = ANY(:nrs)',
+        """COALESCE(b."DS_TIPO_VOTAVEL", '') NOT IN ('Branco', 'Nulo')""",
+    ]
+    params: dict = {
+        "ano": str(ano),
+        "uf": uf,
+        "cd": cd_municipio,
+        "cargo": cd_cargo,
+        "nrs": list(nrs),
+    }
+
+    if dimensao == "zona":
+        sql = f'''
+            SELECT b."NR_ZONA" AS territorio,
+                   b."NR_VOTAVEL" AS nr,
+                   MAX(b."NM_VOTAVEL") AS nm,
+                   SUM(b."QT_VOTOS"::bigint) AS votos
+            FROM boletim_de_urna b
+            WHERE {' AND '.join(base_where)}
+            GROUP BY b."NR_ZONA", b."NR_VOTAVEL"
+            ORDER BY b."NR_ZONA", votos DESC
+        '''
+    elif dimensao == "secao":
+        sql = f'''
+            SELECT b."NR_ZONA" || ' · Seção ' || b."NR_SECAO" AS territorio,
+                   b."NR_VOTAVEL" AS nr,
+                   MAX(b."NM_VOTAVEL") AS nm,
+                   SUM(b."QT_VOTOS"::bigint) AS votos
+            FROM boletim_de_urna b
+            WHERE {' AND '.join(base_where)}
+            GROUP BY b."NR_ZONA", b."NR_SECAO", b."NR_VOTAVEL"
+            ORDER BY b."NR_ZONA", b."NR_SECAO", votos DESC
+        '''
+    elif dimensao == "bairro":
+        sql = f'''
+            SELECT COALESCE(NULLIF(TRIM(lv."NM_BAIRRO"), ''), '(sem bairro)') AS territorio,
+                   b."NR_VOTAVEL" AS nr,
+                   MAX(b."NM_VOTAVEL") AS nm,
+                   SUM(b."QT_VOTOS"::bigint) AS votos
+            FROM boletim_de_urna b
+            JOIN local_votacao lv
+              ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
+             AND lv."SG_UF" = b."SG_UF"
+             AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
+             AND lv."NR_ZONA" = b."NR_ZONA"
+             AND lv."NR_SECAO" = b."NR_SECAO"
+            WHERE {' AND '.join(base_where)}
+            GROUP BY 1, b."NR_VOTAVEL"
+            ORDER BY 1, votos DESC
+        '''
+    else:
+        raise ValueError(f"Dimensão inválida: {dimensao}")
+
+    return run_df(sql, params)

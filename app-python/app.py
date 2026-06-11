@@ -1,10 +1,14 @@
-"""Streamlit app — Dossiê eleitoral.
+"""Streamlit app — Dados Eleitorais.
 
 Filtros globais (Eleição/Ano + UF + Cidade + Cargo + Candidato) ficam acima
 das 9 abas. Cada aba é um módulo em ui/ que recebe um dict ``ctx`` com o
 contexto selecionado pelo usuário.
 """
 from __future__ import annotations
+
+import base64
+import html
+from pathlib import Path
 
 import streamlit as st
 
@@ -18,6 +22,7 @@ from queries import (
 )
 from ui import (
     tab_card_local,
+    tab_comparativo,
     tab_perfil_eleitorado,
     tab_ranking_municipio,
     tab_resumo_municipio,
@@ -28,9 +33,12 @@ from ui import (
     tab_votos_municipio,
 )
 
+LOGO_PATH = Path(__file__).resolve().parent.parent / "imagens" / "logo-elegis-light.png"
+FAVICON_PATH = Path(__file__).resolve().parent.parent / "imagens" / "favicon.png"
+
 st.set_page_config(
-    page_title="Dossiê eleitoral",
-    page_icon="🗳️",
+    page_title="Dados Eleitorais",
+    page_icon=str(FAVICON_PATH) if FAVICON_PATH.is_file() else "🗳️",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -38,20 +46,175 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      .block-container { padding-top: 1.2rem; }
+      /* Streamlit fixa a barra superior (Deploy/menu); padding baixo cortava o título. */
+      .block-container {
+        padding-top: 4.5rem;
+        padding-bottom: 1rem;
+      }
       h1, h2, h3 { color: #0b2545; }
       [data-testid="stMetricLabel"] { color: #5b6b80; }
+
+      .app-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .app-header-logo {
+        width: 150px;
+        max-width: 42vw;
+        height: auto;
+        flex-shrink: 0;
+      }
+      .app-header-text {
+        border-left: 4px solid #1f6feb;
+        padding-left: 0.6rem;
+        flex: 1 1 240px;
+        min-width: 0;
+      }
+      .app-header-title {
+        font-size: clamp(1.25rem, 4vw, 1.6rem);
+        font-weight: 800;
+        color: #0b2545;
+        line-height: 1.2;
+      }
+      .app-header-subtitle {
+        color: #5b6b80;
+        margin-top: 0.2rem;
+        font-size: clamp(0.85rem, 2.5vw, 0.95rem);
+        line-height: 1.35;
+      }
+
+      /* Abas — cartões brancos, ativa em azul; no mobile quebram linha e ficam arredondadas */
+      div[data-testid="stTabs"] [data-baseweb="tab-list"] {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 0.35rem;
+        background: #f0f3f7;
+        border-bottom: 1px solid #dce3eb;
+        padding: 0.45rem 0.45rem 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      div[data-testid="stTabs"] [data-baseweb="tab"] {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
+        height: auto;
+        margin-bottom: -1px;
+        padding: 10px 20px;
+      }
+      div[data-testid="stTabs"] [data-baseweb="tab"] button {
+        background: transparent;
+        border: none;
+        color: #4a5c6e;
+        font-weight: 500;
+        font-size: 0.92rem;
+        padding: 0.65rem 0.9rem;
+        white-space: nowrap;
+      }
+      div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+        border-bottom: 2px solid #1f6feb;
+        z-index: 1;
+      }
+      div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] button {
+        color: #1f6feb;
+        font-weight: 650;
+      }
+        div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+        background-color: transparent !important;
+      }
+
+      .print-filter-summary { display: none; }
+      #global-filters-marker { display: none; }
+      @media print {
+        header[data-testid="stHeader"],
+        section[data-testid="stSidebar"],
+        footer { display: none !important; }
+        .block-container { padding-top: 0.5rem !important; }
+        .element-container:has(#global-filters-marker) + .element-container {
+          display: none !important;
+        }
+        .print-filter-summary {
+          display: block !important;
+          color: #0b2545;
+          font-size: 0.95rem;
+          margin: 0 0 0.75rem;
+          padding: 0.35rem 0;
+          border-bottom: 1px solid #dce3eb;
+        }
+        div[data-testid="stTabs"] [data-baseweb="tab-list"] { display: none !important; }
+      }
+
+      @media (max-width: 768px) {
+        .app-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.6rem;
+        }
+        .app-header-logo {
+          max-width: 130px;
+        }
+        .app-header-text {
+          border-left: none;
+          padding-left: 0;
+          width: 100%;
+        }
+        [data-testid="stHorizontalBlock"] {
+          flex-wrap: wrap !important;
+          gap: 0.25rem !important;
+        }
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+          flex: 1 1 100% !important;
+          min-width: 100% !important;
+          width: 100% !important;
+        }
+        div[data-testid="stTabs"] [data-baseweb="tab-list"] {
+          flex-wrap: wrap;
+          overflow-x: visible;
+          gap: 0.4rem;
+          padding: 0.45rem;
+          border-bottom: none;
+        }
+        div[data-testid="stTabs"] [data-baseweb="tab"] {
+          border-radius: 8px;
+          border-bottom: 1px solid #e2e8f0;
+          margin-bottom: 0;
+          flex: 0 1 auto;
+        }
+        div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+          border-bottom: 2px solid #1f6feb;
+        }
+        div[data-testid="stTabs"] [data-baseweb="tab"] button {
+          white-space: normal;
+          line-height: 1.25;
+        }
+      }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+logo_html = ""
+if LOGO_PATH.is_file():
+    encoded = base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
+    logo_html = (
+        f'<img class="app-header-logo" src="data:image/png;base64,{encoded}" alt="Elegis">'
+    )
+
 st.markdown(
-    "<div style='display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem'>"
-    "<div style='font-size:1.8rem'>🗳️</div>"
-    "<div><div style='font-size:1.6rem;font-weight:800;color:#0b2545'>Dossiê eleitoral</div>"
-    "<div style='color:#5b6b80'>Resultados consolidados a partir do boletim de urna do TSE.</div>"
-    "</div></div>",
+    f"""
+    <div class="app-header">
+      {logo_html}
+      <div class="app-header-text">
+        <div class="app-header-title">Dados Eleitorais</div>
+        <div class="app-header-subtitle">
+          Resultados consolidados a partir do boletim de urna do TSE.
+        </div>
+      </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -64,6 +227,7 @@ if not anos:
     st.error("Nenhuma eleição encontrada em `boletim_de_urna`. Importe os dados antes.")
     st.stop()
 
+st.markdown('<div id="global-filters-marker"></div>', unsafe_allow_html=True)
 c1, c2, c3, c4, c5 = st.columns([1, 1, 1.4, 1.4, 1.6])
 with c1:
     ano = st.selectbox("Eleição/Ano", anos, index=len(anos) - 1)
@@ -126,6 +290,18 @@ with c5:
     )
     nr_votavel = cands.loc[sel_cand, "nr"]
     nm_candidato = cands.loc[sel_cand, "nm"]
+    sg_partido = cands.loc[sel_cand, "sg_partido"] or "—"
+
+cidade_impressao = nm_municipio if nm_municipio else "— (eleição geral)"
+candidato_impressao = f"{nm_candidato} ({sg_partido})"
+st.markdown(
+    '<div class="print-filter-summary">'
+    f"{html.escape(str(ano))} | {html.escape(uf)} | "
+    f"{html.escape(cidade_impressao)} | {html.escape(ds_cargo)} | "
+    f"{html.escape(candidato_impressao)}"
+    "</div>",
+    unsafe_allow_html=True,
+)
 
 with st.sidebar:
     st.markdown("### Cache")
@@ -134,8 +310,8 @@ with st.sidebar:
         st.success("Cache limpo. Recarregando…")
         st.rerun()
     st.markdown("---")
-    st.caption("Banco: `eleicoes` em PostgreSQL local.")
-    st.caption("Tabela base: `boletim_de_urna` (granular por seção).")
+    # st.caption("Banco: `eleicoes` em PostgreSQL local.")
+    # st.caption("Tabela base: `boletim_de_urna` (granular por seção).")
 
 ctx = {
     "ano": int(ano),
@@ -155,15 +331,16 @@ st.divider()
 # Tabs (uma por imagem de referência)
 # ---------------------------------------------------------------------------
 labels = [
-    "1 · Sumário",
-    "2 · Resumo município",
-    "3 · Perfil eleitorado (UF)",
-    "4 · Votos no estado",
-    "5 · Votos no município",
-    "6 · Ranking município",
-    "7 · Síntese territorial",
-    "8 · Card local",
-    "9 · Votos por bairro",
+    "1. Sumário",
+    "2. Resumo município",
+    "3. Perfil eleitorado (UF)",
+    "4. Votos no estado",
+    "5. Votos no município",
+    "6. Ranking município",
+    "7. Síntese territorial",
+    "8. Votos por local de votação",
+    "9. Comparativo candidatos",
+    "10. Votos por bairro",
 ]
 tabs = st.tabs(labels)
 with tabs[0]: tab_sumario.render(ctx)
@@ -174,4 +351,5 @@ with tabs[4]: tab_votos_municipio.render(ctx)
 with tabs[5]: tab_ranking_municipio.render(ctx)
 with tabs[6]: tab_sintese_territorial.render(ctx)
 with tabs[7]: tab_card_local.render(ctx)
-with tabs[8]: tab_votos_bairro.render(ctx)
+with tabs[8]: tab_comparativo.render(ctx)
+with tabs[9]: tab_votos_bairro.render(ctx)

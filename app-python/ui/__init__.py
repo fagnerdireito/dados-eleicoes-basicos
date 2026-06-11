@@ -1,5 +1,6 @@
 from . import (  # noqa: F401
     tab_card_local,
+    tab_comparativo,
     tab_perfil_eleitorado,
     tab_ranking_municipio,
     tab_resumo_municipio,

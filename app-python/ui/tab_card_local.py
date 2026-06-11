@@ -8,7 +8,7 @@ from queries import locais_do_municipio, nome_local, top_candidatos_no_local
 
 def render(ctx: dict) -> None:
     if not ctx["cd_municipio"]:
-        st.info("Selecione um município para ver o card de local.")
+        st.info("Selecione um município para ver os votos por local de votação.")
         return
 
     locais = locais_do_municipio(

@@ -24,7 +24,7 @@ O script cria `.venv`, instala `requirements.txt` e sobe o Streamlit em `http://
 No topo da página: **Eleição/Ano · UF · Cidade · Cargo · Candidato foco**.
 - Cidade é obrigatória em anos pares (eleições municipais — 2020/2024).
 - Cidade é opcional em 2022 (eleições gerais).
-- Candidato foco é usado pelas abas Resumo, Onde estão os votos (estado/município), Síntese territorial, Card local e Bairro.
+- Candidato foco é usado pelas abas Resumo, Onde estão os votos (estado/município), Síntese territorial, Votos por local de votação e Bairro.
 
 ## Abas
 
@@ -37,7 +37,7 @@ No topo da página: **Eleição/Ano · UF · Cidade · Cargo · Candidato foco**
 | 5 | Onde estão os votos no município (mapa) | OK só para 2024 (depende de `local_votacao`) |
 | 6 | Ranking geral no município | OK |
 | 7 | Síntese territorial | OK |
-| 8 | Card local de votação | OK |
+| 8 | Votos por local de votação | OK |
 | 9 | Votos por bairro | OK só para 2024 |
 
 ## Dados ainda não importados (TSE)

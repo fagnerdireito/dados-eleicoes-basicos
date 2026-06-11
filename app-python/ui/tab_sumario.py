@@ -20,7 +20,7 @@ def render(ctx: dict) -> None:
         ("Onde estão os votos no município", "Mapa de bolhas por local de votação (precisa de coordenadas; só 2024)."),
         ("Ranking geral no município", "Top 10 candidatos no município comparando com a eleição anterior."),
         ("Síntese territorial", "Quantos locais cada candidato lidera dentro do município."),
-        ("Card local de votação", "Top 10 candidatos por local + totais (válidos, brancos e nulos)."),
+        ("Votos por local de votação", "Top 10 candidatos por local + totais (válidos, brancos e nulos)."),
         ("Votos por bairro", "Agregação por bairro/local via JOIN com local_votacao (só 2024)."),
     ]
     for i, (titulo, descricao) in enumerate(itens, start=2):

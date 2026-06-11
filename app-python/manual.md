@@ -72,7 +72,7 @@ Renderizados no topo de `app.py`, persistidos em `ctx` e passados para cada aba:
 | 5 | **Votos no município (mapa)** | ✅ só em 2024 | Bolhas por local de votação via `JOIN local_votacao` (lat/lng). Demais anos: aviso explicando lacuna. |
 | 6 | **Ranking município** | ✅ | Top 10 candidatos lado a lado, comparando ano selecionado vs ano−4 (mesmo tipo de eleição). |
 | 7 | **Síntese territorial** | ✅ | `RANK() OVER (PARTITION BY NR_LOCAL_VOTACAO)` agregando "quantos locais cada candidato lidera". |
-| 8 | **Card local** | ✅ | Seletor de local + top 10 candidatos + totais (válidos/brancos/nulos) + destaque do candidato foco. |
+| 8 | **Votos por local de votação** | ✅ | Seletor de local + top 10 candidatos + totais (válidos/brancos/nulos) + destaque do candidato foco. |
 | 9 | **Votos por bairro** | ✅ só em 2024 | Tabelas Município/Bairro/Local com JOIN dinâmico em `local_votacao`. |
 
 ### 2.5 Cache e performance
@@ -112,7 +112,7 @@ cd /Users/fagnerdossgoncalves/wwwroot/lab/dados-eleicoes-basicos/app-python
   - Cards "Comparecimento (UF)" e "Abstenção (UF)" com totais.
   - Gráfico de barras horizontal "Abstenção por faixa etária".
   - Gráfico de barras horizontal "Abstenção por escolaridade".
-- **Avatares de candidato** nos cards (Ranking, Card local, Síntese).
+- **Avatares de candidato** nos cards (Ranking, Votos por local de votação, Síntese).
 - **Filtro por turno** (`NR_TURNO`): hoje agrega 1º e 2º turnos juntos. Necessário em eleições com 2º turno (Governador/Presidente).
 - **Filtro por situação** (`DS_SIT_TOT_TURNO`): hoje ranking ignora eleito/não eleito.
 - **Persistir favoritos** (estrela de município, como na tela "Busca e Seleção de Municípios" do `sistema.md`).
