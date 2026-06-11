@@ -565,16 +565,64 @@ def comparativo_votos_territorio(
     nrs: tuple[str, ...],
     dimensao: str,
 ) -> pd.DataFrame:
-    """Votos dos candidatos selecionados agregados por zona, bairro ou seção."""
+    """Votos dos candidatos selecionados por território + total geral do território.
+
+    Retorna colunas: territorio, nr, nm, votos, total_territorio.
+    `total_territorio` é a soma de votos nominais + legenda de TODOS os candidatos
+    naquele território (descontando branco/nulo), pra calcular o percentual real
+    do candidato no local — não só o percentual entre os selecionados.
+    """
     if not nrs:
         return pd.DataFrame()
 
+    # Configuração por dimensão: como derivar o "território" e quais
+    # campos do boletim entram no GROUP BY.
+    _LV_JOIN = (
+        '''JOIN local_votacao lv
+              ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
+             AND lv."SG_UF" = b."SG_UF"
+             AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
+             AND lv."NR_ZONA" = b."NR_ZONA"
+             AND lv."NR_SECAO" = b."NR_SECAO"'''
+    )
+    dim_cfg = {
+        "zona": {
+            "territorio_expr": 'b."NR_ZONA"',
+            "join_clause": "",
+            "group_extra": 'b."NR_ZONA"',
+        },
+        "secao": {
+            "territorio_expr": 'b."NR_ZONA" || \' · Seção \' || b."NR_SECAO"',
+            "join_clause": "",
+            "group_extra": 'b."NR_ZONA", b."NR_SECAO"',
+        },
+        "bairro": {
+            "territorio_expr": (
+                'COALESCE(NULLIF(TRIM(lv."NM_BAIRRO"), \'\'), \'(sem bairro)\')'
+            ),
+            "join_clause": _LV_JOIN,
+            "group_extra": 'lv."NM_BAIRRO"',
+        },
+        "local": {
+            "territorio_expr": (
+                'COALESCE(NULLIF(TRIM(lv."NM_LOCAL_VOTACAO"), \'\'), '
+                "'Local ' || b.\"NR_LOCAL_VOTACAO\")"
+            ),
+            "join_clause": _LV_JOIN,
+            "group_extra": 'lv."NM_LOCAL_VOTACAO", b."NR_LOCAL_VOTACAO"',
+        },
+    }
+    if dimensao not in dim_cfg:
+        raise ValueError(f"Dimensão inválida: {dimensao}")
+    cfg = dim_cfg[dimensao]
+
+    # WHERE comum a todas dimensões — exclui Branco/Nulo, mas NÃO filtra
+    # NR_VOTAVEL (queremos o total de todos os candidatos no território).
     base_where = [
         'b."ANO_ELEICAO" = :ano',
         'b."SG_UF" = :uf',
         'b."CD_MUNICIPIO" = :cd',
         'b."CD_CARGO_PERGUNTA" = :cargo',
-        'b."NR_VOTAVEL" = ANY(:nrs)',
         """COALESCE(b."DS_TIPO_VOTAVEL", '') NOT IN ('Branco', 'Nulo')""",
     ]
     params: dict = {
@@ -585,66 +633,26 @@ def comparativo_votos_territorio(
         "nrs": list(nrs),
     }
 
-    if dimensao == "zona":
-        sql = f'''
-            SELECT b."NR_ZONA" AS territorio,
+    sql = f"""
+        WITH all_votes AS (
+            SELECT {cfg['territorio_expr']} AS territorio,
                    b."NR_VOTAVEL" AS nr,
                    MAX(b."NM_VOTAVEL") AS nm,
                    SUM(b."QT_VOTOS"::bigint) AS votos
             FROM boletim_de_urna b
+            {cfg['join_clause']}
             WHERE {' AND '.join(base_where)}
-            GROUP BY b."NR_ZONA", b."NR_VOTAVEL"
-            ORDER BY b."NR_ZONA", votos DESC
-        '''
-    elif dimensao == "secao":
-        sql = f'''
-            SELECT b."NR_ZONA" || ' · Seção ' || b."NR_SECAO" AS territorio,
-                   b."NR_VOTAVEL" AS nr,
-                   MAX(b."NM_VOTAVEL") AS nm,
-                   SUM(b."QT_VOTOS"::bigint) AS votos
-            FROM boletim_de_urna b
-            WHERE {' AND '.join(base_where)}
-            GROUP BY b."NR_ZONA", b."NR_SECAO", b."NR_VOTAVEL"
-            ORDER BY b."NR_ZONA", b."NR_SECAO", votos DESC
-        '''
-    elif dimensao == "bairro":
-        sql = f'''
-            SELECT COALESCE(NULLIF(TRIM(lv."NM_BAIRRO"), ''), '(sem bairro)') AS territorio,
-                   b."NR_VOTAVEL" AS nr,
-                   MAX(b."NM_VOTAVEL") AS nm,
-                   SUM(b."QT_VOTOS"::bigint) AS votos
-            FROM boletim_de_urna b
-            JOIN local_votacao lv
-              ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
-             AND lv."SG_UF" = b."SG_UF"
-             AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
-             AND lv."NR_ZONA" = b."NR_ZONA"
-             AND lv."NR_SECAO" = b."NR_SECAO"
-            WHERE {' AND '.join(base_where)}
-            GROUP BY 1, b."NR_VOTAVEL"
-            ORDER BY 1, votos DESC
-        '''
-    elif dimensao == "local":
-        sql = f'''
-            SELECT COALESCE(
-                     NULLIF(TRIM(lv."NM_LOCAL_VOTACAO"), ''),
-                     'Local ' || b."NR_LOCAL_VOTACAO"
-                   ) AS territorio,
-                   b."NR_VOTAVEL" AS nr,
-                   MAX(b."NM_VOTAVEL") AS nm,
-                   SUM(b."QT_VOTOS"::bigint) AS votos
-            FROM boletim_de_urna b
-            JOIN local_votacao lv
-              ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
-             AND lv."SG_UF" = b."SG_UF"
-             AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
-             AND lv."NR_ZONA" = b."NR_ZONA"
-             AND lv."NR_SECAO" = b."NR_SECAO"
-            WHERE {' AND '.join(base_where)}
-            GROUP BY 1, b."NR_VOTAVEL"
-            ORDER BY 1, votos DESC
-        '''
-    else:
-        raise ValueError(f"Dimensão inválida: {dimensao}")
+            GROUP BY {cfg['territorio_expr']}, {cfg['group_extra']}, b."NR_VOTAVEL"
+        ),
+        with_total AS (
+            SELECT territorio, nr, nm, votos,
+                   SUM(votos) OVER (PARTITION BY territorio) AS total_territorio
+            FROM all_votes
+        )
+        SELECT territorio, nr, nm, votos, total_territorio
+        FROM with_total
+        WHERE nr = ANY(:nrs)
+        ORDER BY territorio, votos DESC
+    """
 
     return run_df(sql, params)

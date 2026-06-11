@@ -31,25 +31,43 @@ def _short_name(label: str, max_len: int = 22) -> str:
 
 
 def _pivot_comparativo(df: pd.DataFrame, nrs: list[str]) -> pd.DataFrame:
+    """Pivota o DataFrame longo (uma linha por território/candidato) em um
+    formato largo onde cada linha é um território e cada candidato gera
+    colunas {nr}_votos, {nr}_pct_territorio e {nr}_pct_comparativo.
+
+    - pct_territorio: % do candidato sobre TODOS os votos válidos no território
+      (vem de total_territorio retornado pela query).
+    - pct_comparativo: % do candidato sobre os votos só dos candidatos
+      selecionados — útil quando há 2+ candidatos sendo comparados.
+    """
     if df.empty:
         return pd.DataFrame()
 
     rows: list[dict] = []
     for territorio, grp in df.groupby("territorio", sort=False):
-        total = int(grp["votos"].sum())
-        row: dict = {"territorio": territorio, "_total": total}
+        selecionados_total = int(grp["votos"].sum())
+        territorio_total = int(grp["total_territorio"].iloc[0] or 0)
+        row: dict = {
+            "territorio": territorio,
+            "_total_selecionados": selecionados_total,
+        }
         for nr in nrs:
             match = grp[grp["nr"].astype(str) == str(nr)]
             votos = int(match["votos"].iloc[0]) if not match.empty else 0
             row[f"{nr}_votos"] = votos
-            row[f"{nr}_pct"] = (votos / total * 100) if total else 0.0
+            row[f"{nr}_pct_territorio"] = (
+                (votos / territorio_total * 100) if territorio_total else 0.0
+            )
+            row[f"{nr}_pct_comparativo"] = (
+                (votos / selecionados_total * 100) if selecionados_total else 0.0
+            )
         rows.append(row)
 
     out = pd.DataFrame(rows)
     if out.empty:
         return out
     sort_col = f"{nrs[0]}_votos"
-    return out.sort_values(sort_col, ascending=False).drop(columns="_total")
+    return out.sort_values(sort_col, ascending=False).drop(columns="_total_selecionados")
 
 
 def _render_cards(nrs: list[str], cands: pd.DataFrame, labels: dict[str, str]) -> None:
@@ -100,6 +118,10 @@ def _render_tabela(
         )
     head += "</tr>"
 
+    # O pct_comparativo (proporção entre os selecionados) só faz sentido
+    # quando há mais de um candidato escolhido.
+    mostrar_comparativo = len(nrs) > 1
+
     # Itera com itertuples renomeando para acesso posicional — colunas como
     # "10_votos" começam com dígito e o pandas troca por nomes inválidos no
     # namedtuple; por isso acessamos via __getitem__ no dict gerado por _asdict.
@@ -114,11 +136,25 @@ def _render_tabela(
         for i, nr in enumerate(nrs):
             color = _CAND_COLORS[i % len(_CAND_COLORS)]
             votos = int(row.get(f"{nr}_votos", 0) or 0)
-            pct = float(row.get(f"{nr}_pct", 0.0) or 0.0)
+            pct_terr = float(row.get(f"{nr}_pct_territorio", 0.0) or 0.0)
+            pct_cmp = float(row.get(f"{nr}_pct_comparativo", 0.0) or 0.0)
+            if mostrar_comparativo:
+                pct_html = (
+                    f"<span title='% sobre o total do {dim_label.lower()}'>"
+                    f"{fmt_pct(pct_terr)}</span>"
+                    f"<span style='color:#a3aebd;margin:0 0.35rem'>|</span>"
+                    f"<span title='% entre os candidatos comparados'>"
+                    f"{fmt_pct(pct_cmp)}</span>"
+                )
+            else:
+                pct_html = (
+                    f"<span title='% sobre o total do {dim_label.lower()}'>"
+                    f"{fmt_pct(pct_terr)}</span>"
+                )
             body += (
                 f"<td style='padding:0.55rem 0.75rem;text-align:right'>"
                 f"<div style='font-weight:700;color:{color}'>{fmt_int(votos)}</div>"
-                f"<div style='font-size:0.8rem;color:#5b6b80'>{fmt_pct(pct)}</div>"
+                f"<div style='font-size:0.8rem;color:#5b6b80'>{pct_html}</div>"
                 f"</td>"
             )
         body += "</tr>"
