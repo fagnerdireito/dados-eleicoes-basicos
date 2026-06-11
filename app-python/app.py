@@ -127,22 +127,41 @@ st.markdown(
       }
 
       .print-filter-summary { display: none; }
-      #global-filters-marker { display: none; }
+      .element-container:has(.print-filter-summary) { display: none !important; }
+      #global-filters-marker,
+      .global-filter-marker { display: none; }
+      .element-container:has(.global-filter-marker) {
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
       @media print {
         header[data-testid="stHeader"],
         section[data-testid="stSidebar"],
         footer { display: none !important; }
         .block-container { padding-top: 0.5rem !important; }
-        .element-container:has(#global-filters-marker) + .element-container {
+        .element-container:has(.global-filter-marker),
+        .element-container:has(.global-filter-marker) + .element-container {
           display: none !important;
+        }
+        .element-container:has(.print-filter-summary) {
+          display: block !important;
         }
         .print-filter-summary {
           display: block !important;
           color: #0b2545;
           font-size: 0.95rem;
           margin: 0 0 0.75rem;
-          padding: 0.35rem 0;
+          padding: 0 0 0.65rem;
           border-bottom: 1px solid #dce3eb;
+        }
+        .element-container:has([data-testid="stDivider"]),
+        .element-container:has(.print-filter-summary) + .element-container:has(hr) {
+          display: none !important;
+          height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
         }
         div[data-testid="stTabs"] [data-baseweb="tab-list"] { display: none !important; }
       }
@@ -160,6 +179,10 @@ st.markdown(
           border-left: none;
           padding-left: 0;
           width: 100%;
+          flex: 0 0 auto;
+        }
+        .element-container:has(.app-header) {
+          margin-bottom: 0.35rem !important;
         }
         [data-testid="stHorizontalBlock"] {
           flex-wrap: wrap !important;
@@ -206,6 +229,7 @@ if LOGO_PATH.is_file():
 st.markdown(
     f"""
     <div class="app-header">
+      <span id="global-filters-marker" aria-hidden="true"></span>
       {logo_html}
       <div class="app-header-text">
         <div class="app-header-title">Dados Eleitorais</div>
@@ -227,18 +251,21 @@ if not anos:
     st.error("Nenhuma eleição encontrada em `boletim_de_urna`. Importe os dados antes.")
     st.stop()
 
-st.markdown('<div id="global-filters-marker"></div>', unsafe_allow_html=True)
+_FILTER_MARKER = '<span class="global-filter-marker" aria-hidden="true"></span>'
 c1, c2, c3, c4, c5 = st.columns([1, 1, 1.4, 1.4, 1.6])
 with c1:
+    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
     ano = st.selectbox("Eleição/Ano", anos, index=len(anos) - 1)
 municipal = is_municipal(ano)
 
 ufs = listar_ufs(ano)
 with c2:
+    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
     uf = st.selectbox("UF", ufs, index=0 if ufs else None)
 
 with c3:
     municipios = listar_municipios(ano, uf)
+    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
     if municipal:
         if municipios.empty:
             st.warning("Sem municípios para o filtro.")
@@ -267,6 +294,7 @@ with c3:
 
 cargos = listar_cargos(ano, uf, cd_municipio)
 with c4:
+    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
     if cargos.empty:
         st.warning("Sem cargos para o filtro.")
         st.stop()
@@ -280,6 +308,7 @@ with c4:
 
 cands = listar_candidatos(ano, uf, cd_municipio, cd_cargo)
 with c5:
+    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
     if cands.empty:
         st.warning("Sem candidatos para o filtro.")
         st.stop()
