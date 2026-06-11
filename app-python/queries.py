@@ -209,14 +209,20 @@ def resumo_candidato_municipio(
 def votos_candidato_por_municipio(
     ano: int, uf: str, cd_cargo: str, nr_votavel: str
 ) -> pd.DataFrame:
+    """Inclui código IBGE (via JOIN com municipio_tse_ibge) para o coroplético."""
     return run_df(
         '''
-        SELECT "CD_MUNICIPIO" AS cd, MAX("NM_MUNICIPIO") AS nm,
-               SUM("QT_VOTOS"::bigint) AS votos
-        FROM boletim_de_urna
-        WHERE "ANO_ELEICAO" = :ano AND "SG_UF" = :uf
-          AND "CD_CARGO_PERGUNTA" = :cargo AND "NR_VOTAVEL" = :nr
-        GROUP BY 1
+        SELECT b."CD_MUNICIPIO" AS cd,
+               MAX(b."NM_MUNICIPIO") AS nm,
+               MAX(m.cd_municipio_ibge) AS cd_ibge,
+               SUM(b."QT_VOTOS"::bigint) AS votos
+        FROM boletim_de_urna b
+        LEFT JOIN municipio_tse_ibge m
+          ON m.sg_uf = b."SG_UF"
+         AND m.cd_municipio_tse = b."CD_MUNICIPIO"
+        WHERE b."ANO_ELEICAO" = :ano AND b."SG_UF" = :uf
+          AND b."CD_CARGO_PERGUNTA" = :cargo AND b."NR_VOTAVEL" = :nr
+        GROUP BY b."CD_MUNICIPIO"
         ORDER BY votos DESC
         ''',
         {"ano": str(ano), "uf": uf, "cargo": cd_cargo, "nr": nr_votavel},
