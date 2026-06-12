@@ -192,12 +192,13 @@ def listar_candidatos(
             params["cd"] = cd_municipio
         sql = f'''
             SELECT nr_votavel AS nr,
-                   nm_votavel AS nm,
-                   sg_partido,
-                   total_votos AS votos
+                   MAX(nm_votavel) AS nm,
+                   MAX(sg_partido) AS sg_partido,
+                   SUM(total_votos) AS votos
             FROM catalogo_boletim
             WHERE {' AND '.join(where)}
-            ORDER BY nm_votavel ASC
+            GROUP BY nr_votavel
+            ORDER BY MAX(nm_votavel) ASC
         '''
         return run_df(sql, params)
 
@@ -628,16 +629,32 @@ def comparativo_votos_territorio(
     # Configuração por dimensão: como derivar o "território" e quais
     # campos do boletim entram no GROUP BY.
     lv_join = _LV_JOIN.strip()
+    if table_exists("local_votacao"):
+        secao_local_select = (
+            "MAX(COALESCE(NULLIF(TRIM(lv.\"NM_LOCAL_VOTACAO\"), ''), "
+            "'Local ' || b.\"NR_LOCAL_VOTACAO\")) AS nm_local,"
+        )
+        secao_join = lv_join
+        secao_group_extra = (
+            'b."NR_ZONA", b."NR_SECAO", lv."NM_LOCAL_VOTACAO", b."NR_LOCAL_VOTACAO"'
+        )
+    else:
+        secao_local_select = "MAX('Local ' || b.\"NR_LOCAL_VOTACAO\") AS nm_local,"
+        secao_join = ""
+        secao_group_extra = 'b."NR_ZONA", b."NR_SECAO", b."NR_LOCAL_VOTACAO"'
+
     dim_cfg = {
         "zona": {
             "territorio_expr": 'b."NR_ZONA"',
             "join_clause": "",
             "group_extra": 'b."NR_ZONA"',
+            "local_select": "NULL::text AS nm_local,",
         },
         "secao": {
             "territorio_expr": 'b."NR_ZONA" || \' · Seção \' || b."NR_SECAO"',
-            "join_clause": "",
-            "group_extra": 'b."NR_ZONA", b."NR_SECAO"',
+            "join_clause": secao_join,
+            "group_extra": secao_group_extra,
+            "local_select": secao_local_select,
         },
         "bairro": {
             "territorio_expr": (
@@ -645,6 +662,7 @@ def comparativo_votos_territorio(
             ),
             "join_clause": lv_join,
             "group_extra": 'lv."NM_BAIRRO"',
+            "local_select": "NULL::text AS nm_local,",
         },
         "local": {
             "territorio_expr": (
@@ -653,6 +671,7 @@ def comparativo_votos_territorio(
             ),
             "join_clause": lv_join,
             "group_extra": 'lv."NM_LOCAL_VOTACAO", b."NR_LOCAL_VOTACAO"',
+            "local_select": "NULL::text AS nm_local,",
         },
     }
     if dimensao not in dim_cfg:
@@ -679,6 +698,7 @@ def comparativo_votos_territorio(
     sql = f"""
         WITH all_votes AS (
             SELECT {cfg['territorio_expr']} AS territorio,
+                   {cfg['local_select']}
                    b."NR_VOTAVEL" AS nr,
                    MAX(b."NM_VOTAVEL") AS nm,
                    SUM(b."QT_VOTOS"::bigint) AS votos
@@ -688,11 +708,11 @@ def comparativo_votos_territorio(
             GROUP BY {cfg['territorio_expr']}, {cfg['group_extra']}, b."NR_VOTAVEL"
         ),
         with_total AS (
-            SELECT territorio, nr, nm, votos,
+            SELECT territorio, nm_local, nr, nm, votos,
                    SUM(votos) OVER (PARTITION BY territorio) AS total_territorio
             FROM all_votes
         )
-        SELECT territorio, nr, nm, votos, total_territorio
+        SELECT territorio, nm_local, nr, nm, votos, total_territorio
         FROM with_total
         WHERE nr = ANY(:nrs)
         ORDER BY territorio, votos DESC

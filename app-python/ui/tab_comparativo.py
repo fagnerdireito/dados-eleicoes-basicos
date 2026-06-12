@@ -47,8 +47,14 @@ def _pivot_comparativo(df: pd.DataFrame, nrs: list[str]) -> pd.DataFrame:
     for territorio, grp in df.groupby("territorio", sort=False):
         selecionados_total = int(grp["votos"].sum())
         territorio_total = int(grp["total_territorio"].iloc[0] or 0)
+        nm_local = ""
+        if "nm_local" in grp.columns:
+            vals = grp["nm_local"].dropna()
+            if not vals.empty:
+                nm_local = str(vals.iloc[0])
         row: dict = {
             "territorio": territorio,
+            "nm_local": nm_local,
             "_total_selecionados": selecionados_total,
         }
         for nr in nrs:
@@ -99,6 +105,8 @@ def _render_tabela(
     nrs: list[str],
     labels: dict[str, str],
     dim_label: str,
+    *,
+    mostrar_local: bool = False,
 ) -> None:
     wide = _pivot_comparativo(df_long, nrs)
     if wide.empty:
@@ -110,6 +118,11 @@ def _render_tabela(
         f"<th style='text-align:left;padding:0.55rem 0.75rem;color:#5b6b80;font-size:0.8rem'>"
         f"{dim_label.upper()}</th>"
     )
+    if mostrar_local:
+        head += (
+            "<th style='text-align:left;padding:0.55rem 0.75rem;color:#5b6b80;"
+            "font-size:0.8rem'>LOCAL</th>"
+        )
     for i, nr in enumerate(nrs):
         color = _CAND_COLORS[i % len(_CAND_COLORS)]
         head += (
@@ -133,6 +146,12 @@ def _render_tabela(
             f"<td style='padding:0.55rem 0.75rem;font-weight:600;color:#0b2545'>"
             f"{row['territorio']}</td>"
         )
+        if mostrar_local:
+            local_nm = row.get("nm_local") or "—"
+            body += (
+                f"<td style='padding:0.55rem 0.75rem;color:#0b2545;font-size:0.88rem'>"
+                f"{local_nm}</td>"
+            )
         for i, nr in enumerate(nrs):
             color = _CAND_COLORS[i % len(_CAND_COLORS)]
             votos = int(row.get(f"{nr}_votos", 0) or 0)
@@ -186,7 +205,13 @@ def _render_dimensao(
         nrs,
         dimensao,
     )
-    _render_tabela(df, list(nrs), labels, dim_label)
+    _render_tabela(
+        df,
+        list(nrs),
+        labels,
+        dim_label,
+        mostrar_local=(dimensao == "secao"),
+    )
 
 
 def render(ctx: dict) -> None:
