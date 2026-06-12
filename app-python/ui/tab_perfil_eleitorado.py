@@ -62,10 +62,7 @@ def render(ctx: dict) -> None:
 
     if ages.empty and education.empty:
         with center:
-            st.info(
-                f"Não há registros em `perfil_eleitorado` para {ctx['ano']}/{recorte}. "
-                f"Verifique se o ZIP `perfil_eleitorado_{ctx['ano']}.zip` foi importado."
-            )
+            st.info("Dados não encontrados")
         return
 
     # 3) Gráficos
