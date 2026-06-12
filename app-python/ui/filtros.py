@@ -11,6 +11,7 @@ from typing import Any
 
 import streamlit as st
 
+from components import SELECT_PLACEHOLDER
 from db import is_municipal
 from queries import _usa_catalogo_filtros
 from queries import (
@@ -105,6 +106,7 @@ def render() -> dict[str, Any]:
             "Eleição/Ano",
             anos,
             index=_index_for(anos, qp_ano, default=len(anos) - 1),
+            placeholder=SELECT_PLACEHOLDER,
         )
     municipal = is_municipal(ano)
 
@@ -115,6 +117,7 @@ def render() -> dict[str, Any]:
             "UF",
             ufs,
             index=_index_for(ufs, qp_uf, default=0),
+            placeholder=SELECT_PLACEHOLDER,
         )
 
     with c3:
@@ -131,6 +134,7 @@ def render() -> dict[str, Any]:
                 muni_codes,
                 index=_index_for(muni_codes, qp_municipio, default=0),
                 format_func=lambda cd: muni_names[cd],
+                placeholder=SELECT_PLACEHOLDER,
             )
             nm_municipio = muni_names[cd_municipio]
         else:
@@ -144,6 +148,7 @@ def render() -> dict[str, Any]:
                 muni_codes,
                 index=_index_for(muni_codes, qp_municipio, default=0),
                 format_func=lambda cd: muni_names[cd],
+                placeholder=SELECT_PLACEHOLDER,
             )
             nm_municipio = muni_names[cd_municipio] if cd_municipio else None
 
@@ -160,6 +165,7 @@ def render() -> dict[str, Any]:
             cargo_codes,
             index=_index_for(cargo_codes, qp_cargo, default=0),
             format_func=lambda cd: cargo_names[cd].title(),
+            placeholder=SELECT_PLACEHOLDER,
         )
         ds_cargo = cargo_names[cd_cargo].title()
 
@@ -177,6 +183,7 @@ def render() -> dict[str, Any]:
             cand_numbers,
             index=_index_for(cand_numbers, qp_candidato, default=0),
             format_func=lambda nr: f"{cand_names[nr]} ({cand_parties.get(nr) or '—'})",
+            placeholder=SELECT_PLACEHOLDER,
         )
         nm_candidato = cand_names[nr_votavel]
         sg_partido = cand_parties.get(nr_votavel) or "—"

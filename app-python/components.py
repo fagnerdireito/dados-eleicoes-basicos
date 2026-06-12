@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import streamlit as st
 
+SELECT_PLACEHOLDER = "Selecione uma opção"
+MULTISELECT_PLACEHOLDER = "Selecione uma ou mais opções"
+
 
 def fmt_int(n) -> str:
     if n is None:

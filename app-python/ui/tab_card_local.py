@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from components import bar_row, fmt_int, section_title
+from components import SELECT_PLACEHOLDER, bar_row, fmt_int, section_title
 from queries import locais_do_municipio, nome_local, top_candidatos_no_local
 
 
@@ -27,6 +27,7 @@ def render(ctx: dict) -> None:
         "Local de votação",
         opts,
         format_func=lambda nl: f"{nome_cache[nl]} ({nl})",
+        placeholder=SELECT_PLACEHOLDER,
     )
 
     nome = nome_cache[sel]
