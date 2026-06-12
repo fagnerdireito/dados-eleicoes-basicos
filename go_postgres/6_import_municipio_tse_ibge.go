@@ -28,6 +28,8 @@ const (
 	idxSGUF       = 4
 	idxCDMunTSE   = 6
 	idxNMunTSE    = 7
+	idxCDMunIBGE  = 8
+	idxNMunIBGE   = 9
 	csvSep        = ';'
 	batchMaxRows  = 500
 	pgMaxParams   = 65535
@@ -87,6 +89,19 @@ func main() {
 	_, _ = db.Exec(`SET search_path TO public`)
 
 	_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS public.municipio_tse_ibge (
+	sg_uf VARCHAR(2) NOT NULL,
+	cd_municipio_tse VARCHAR(20) NOT NULL,
+	nm_municipio_tse TEXT NOT NULL,
+	cd_municipio_ibge VARCHAR(20),
+	nm_municipio_ibge TEXT,
+	CONSTRAINT municipio_tse_ibge_pkey PRIMARY KEY (sg_uf, cd_municipio_tse)
+)`)
+	if err != nil {
+		log.Fatalf("criar tabela municipio_tse_ibge (se não existir): %v", err)
+	}
+
+	_, err = db.Exec(`
 CREATE TABLE IF NOT EXISTS public.municipios (
 	id BIGSERIAL PRIMARY KEY,
 	estado_id BIGINT NOT NULL REFERENCES public.estados(id) ON DELETE RESTRICT,
@@ -114,16 +129,22 @@ CREATE TABLE IF NOT EXISTS public.municipios (
 	}
 
 	var (
-		batchEstado []int64
-		batchCod    []string
-		batchNome   []string
-		inserted    int64
-		skippedUF   int64
-		skippedEmp  int64
-		firstBadUF  string
+		batchEstado   []int64
+		batchCod      []string
+		batchNome     []string
+		batchMapUF    []string
+		batchMapCod   []string
+		batchMapNome  []string
+		batchMapIBGE  []string
+		batchMapNIBGE []string
+		inserted      int64
+		insertedMap   int64
+		skippedUF     int64
+		skippedEmp    int64
+		firstBadUF    string
 	)
 
-	flush := func() error {
+	flushMunicipios := func() error {
 		if len(batchEstado) == 0 {
 			return nil
 		}
@@ -140,13 +161,50 @@ CREATE TABLE IF NOT EXISTS public.municipios (
 		return nil
 	}
 
+	flushMunicipioTseIbge := func() error {
+		if len(batchMapUF) == 0 {
+			return nil
+		}
+		sqlStr, args := buildInsertMunicipioTseIbgeSQL(
+			batchMapUF, batchMapCod, batchMapNome, batchMapIBGE, batchMapNIBGE,
+		)
+		res, err := db.Exec(sqlStr, args...)
+		if err != nil {
+			return err
+		}
+		aff, _ := res.RowsAffected()
+		insertedMap += aff
+		batchMapUF = batchMapUF[:0]
+		batchMapCod = batchMapCod[:0]
+		batchMapNome = batchMapNome[:0]
+		batchMapIBGE = batchMapIBGE[:0]
+		batchMapNIBGE = batchMapNIBGE[:0]
+		return nil
+	}
+
+	flush := func() error {
+		if err := flushMunicipios(); err != nil {
+			return err
+		}
+		return flushMunicipioTseIbge()
+	}
+
 	processRow := func(rec []string) error {
 		sg := normUF(cell(rec, idxSGUF))
 		cod := strings.ToUpper(cell(rec, idxCDMunTSE))
 		nome := nomeMunUpper.String(cell(rec, idxNMunTSE))
+		cdIBGE := strings.TrimSpace(cell(rec, idxCDMunIBGE))
+		nmIBGE := strings.TrimSpace(cell(rec, idxNMunIBGE))
 		if cod == "" || nome == "" {
 			skippedEmp++
 			return nil
+		}
+		if sg != "" {
+			batchMapUF = append(batchMapUF, sg)
+			batchMapCod = append(batchMapCod, cod)
+			batchMapNome = append(batchMapNome, nome)
+			batchMapIBGE = append(batchMapIBGE, cdIBGE)
+			batchMapNIBGE = append(batchMapNIBGE, nmIBGE)
 		}
 		eid, ok := ufToID[sg]
 		if !ok {
@@ -154,12 +212,15 @@ CREATE TABLE IF NOT EXISTS public.municipios (
 			if firstBadUF == "" {
 				firstBadUF = sg
 			}
+			if len(batchMapUF) >= maxBatch {
+				return flushMunicipioTseIbge()
+			}
 			return nil
 		}
 		batchEstado = append(batchEstado, eid)
 		batchCod = append(batchCod, cod)
 		batchNome = append(batchNome, nome)
-		if len(batchEstado) >= maxBatch {
+		if len(batchEstado) >= maxBatch || len(batchMapUF) >= maxBatch {
 			return flush()
 		}
 		return nil
@@ -190,9 +251,13 @@ CREATE TABLE IF NOT EXISTS public.municipios (
 	}
 
 	var total int64
+	var totalMap int64
 	_ = db.QueryRow(`SELECT COUNT(*) FROM public.municipios`).Scan(&total)
-	fmt.Printf("Linhas novas aplicadas (RowsAffected do INSERT): %d\n", inserted)
+	_ = db.QueryRow(`SELECT COUNT(*) FROM public.municipio_tse_ibge`).Scan(&totalMap)
+	fmt.Printf("Linhas novas aplicadas em municipios: %d\n", inserted)
 	fmt.Printf("Total na tabela municipios: %d\n", total)
+	fmt.Printf("Linhas novas aplicadas em municipio_tse_ibge: %d\n", insertedMap)
+	fmt.Printf("Total na tabela municipio_tse_ibge: %d\n", totalMap)
 	if skippedUF > 0 {
 		fmt.Printf("Linhas ignoradas (UF sem estado_id): %d", skippedUF)
 		if firstBadUF != "" {
@@ -203,6 +268,24 @@ CREATE TABLE IF NOT EXISTS public.municipios (
 	if skippedEmp > 0 {
 		fmt.Printf("Linhas ignoradas (código ou nome vazio): %d\n", skippedEmp)
 	}
+}
+
+func buildInsertMunicipioTseIbgeSQL(uf, cod, nome, cdIBGE, nmIBGE []string) (string, []interface{}) {
+	n := len(uf)
+	var sb strings.Builder
+	sb.WriteString(`INSERT INTO public.municipio_tse_ibge (sg_uf, cd_municipio_tse, nm_municipio_tse, cd_municipio_ibge, nm_municipio_ibge) VALUES `)
+	args := make([]interface{}, 0, n*5)
+	p := 1
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("($%d, $%d, $%d, $%d, $%d)", p, p+1, p+2, p+3, p+4))
+		args = append(args, uf[i], cod[i], nome[i], cdIBGE[i], nmIBGE[i])
+		p += 5
+	}
+	sb.WriteString(` ON CONFLICT (sg_uf, cd_municipio_tse) DO NOTHING`)
+	return sb.String(), args
 }
 
 func buildInsertMunicipiosSQL(estado []int64, cod, nome []string) (string, []interface{}) {

@@ -15,7 +15,7 @@ _DIM_LABELS = {
     "secao": "Seção",
     "local": "Local de votação",
 }
-# Dimensões que dependem de `local_votacao` (só 2024 hoje).
+# Dimensões que dependem de `local_votacao`.
 _DIM_PRECISA_LOCAL_VOTACAO = {"bairro", "local"}
 
 
@@ -174,14 +174,8 @@ def _render_dimensao(
     dimensao: str,
 ) -> None:
     dim_label = _DIM_LABELS[dimensao]
-    if dimensao in _DIM_PRECISA_LOCAL_VOTACAO and (
-        ctx["ano"] != 2024 or not table_exists("local_votacao")
-    ):
-        st.warning(
-            f"Dados de {dim_label.lower()} exigem a tabela `local_votacao` "
-            "(hoje carregada para **2024**). Importe "
-            "`eleitorado_local_votacao_<ANO>.zip` do TSE para outros anos."
-        )
+    if dimensao in _DIM_PRECISA_LOCAL_VOTACAO and not table_exists("local_votacao"):
+        st.info("Dados não encontrados.")
         return
 
     df = comparativo_votos_territorio(

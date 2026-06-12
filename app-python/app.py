@@ -14,6 +14,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from db import is_municipal
+from queries import _usa_catalogo_filtros
 from queries import (
     listar_anos,
     listar_cargos,
@@ -50,7 +51,7 @@ st.markdown(
       /* Streamlit fixa a barra superior (Deploy/menu); padding baixo cortava o título. */
       .block-container {
         padding-top: 4.5rem;
-        padding-bottom: 1rem;
+        padding-bottom: 100px;
       }
       h1, h2, h3 { color: #0b2545; }
       [data-testid="stMetricLabel"] { color: #5b6b80; }
@@ -143,6 +144,38 @@ st.markdown(
       }
         div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
         background-color: transparent !important;
+      }
+
+      /* Navegação lazy (radio / segmented_control) — visual de abas */
+      .st-key-app-tab-nav [data-testid="stRadio"],
+      .st-key-app-tab-nav [data-testid="stSegmentedControl"] {
+        background: #f0f3f7;
+        border: 1px solid #dce3eb;
+        border-radius: 8px;
+        padding: 0.45rem;
+        margin-bottom: 0.75rem;
+      }
+      .st-key-app-tab-nav [data-testid="stRadio"] > div {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
+      .st-key-app-tab-nav [data-testid="stRadio"] label {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.55rem 0.85rem;
+        margin: 0 !important;
+        font-size: 0.92rem;
+        color: #4a5c6e;
+      }
+      .st-key-app-tab-nav [data-testid="stRadio"] label:has(input:checked) {
+        border-color: #1f6feb;
+        color: #1f6feb;
+        font-weight: 650;
+        box-shadow: inset 0 -2px 0 #1f6feb;
+      }
+      .st-key-app-tab-nav [data-testid="stRadio"] label input {
+        display: none;
       }
 
       .print-filter-summary { display: none; }
@@ -449,6 +482,13 @@ with st.sidebar:
         st.cache_data.clear()
         st.success("Cache limpo. Recarregando…")
         st.rerun()
+    if _usa_catalogo_filtros():
+        st.caption("Filtros acelerados via `catalogo_boletim`.")
+    else:
+        st.caption(
+            "Para filtros mais rápidos, rode "
+            "`go run go_postgres/13_build_catalogo_filtros.go` após importar o boletim."
+        )
     st.markdown("---")
     # st.caption("Banco: `eleicoes` em PostgreSQL local.")
     # st.caption("Tabela base: `boletim_de_urna` (granular por seção).")
@@ -468,28 +508,42 @@ ctx = {
 st.divider()
 
 # ---------------------------------------------------------------------------
-# Tabs (uma por imagem de referência)
+# Abas — renderiza só a seção ativa (st.tabs executaria todas de uma vez)
 # ---------------------------------------------------------------------------
-labels = [
-    "1. Sumário",
-    "2. Resumo município",
-    "3. Perfil eleitorado (UF)",
-    "4. Votos no estado",
-    "5. Votos no município",
-    "6. Ranking município",
-    "7. Síntese territorial",
-    "8. Votos por local de votação",
-    "9. Comparativo candidatos",
-    "10. Votos por bairro",
+_TAB_RENDERERS: list[tuple[str, object]] = [
+    ("1. Sumário", tab_sumario),
+    ("2. Resumo município", tab_resumo_municipio),
+    ("3. Perfil eleitorado (UF)", tab_perfil_eleitorado),
+    ("4. Votos no estado", tab_votos_estado),
+    ("5. Votos no município", tab_votos_municipio),
+    ("6. Ranking município", tab_ranking_municipio),
+    ("7. Síntese territorial", tab_sintese_territorial),
+    ("8. Votos por local de votação", tab_card_local),
+    ("9. Comparativo candidatos", tab_comparativo),
+    ("10. Votos por bairro", tab_votos_bairro),
 ]
-tabs = st.tabs(labels)
-with tabs[0]: tab_sumario.render(ctx)
-with tabs[1]: tab_resumo_municipio.render(ctx)
-with tabs[2]: tab_perfil_eleitorado.render(ctx)
-with tabs[3]: tab_votos_estado.render(ctx)
-with tabs[4]: tab_votos_municipio.render(ctx)
-with tabs[5]: tab_ranking_municipio.render(ctx)
-with tabs[6]: tab_sintese_territorial.render(ctx)
-with tabs[7]: tab_card_local.render(ctx)
-with tabs[8]: tab_comparativo.render(ctx)
-with tabs[9]: tab_votos_bairro.render(ctx)
+_tab_labels = [label for label, _ in _TAB_RENDERERS]
+if "app_tab" not in st.session_state or st.session_state.app_tab not in _tab_labels:
+    st.session_state.app_tab = _tab_labels[0]
+
+with st.container(key="app-tab-nav"):
+    if hasattr(st, "segmented_control"):
+        _sel_tab = st.segmented_control(
+            "Seção",
+            _tab_labels,
+            key="app_tab",
+            label_visibility="collapsed",
+        )
+    else:
+        _sel_tab = st.radio(
+            "Seção",
+            _tab_labels,
+            horizontal=True,
+            key="app_tab",
+            label_visibility="collapsed",
+        )
+
+for _label, _module in _TAB_RENDERERS:
+    if _label == _sel_tab:
+        _module.render(ctx)
+        break

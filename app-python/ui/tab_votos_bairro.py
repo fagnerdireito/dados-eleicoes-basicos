@@ -10,8 +10,8 @@ from queries import votos_candidato_por_municipio, votos_por_bairro, votos_por_l
 def render(ctx: dict) -> None:
     section_title("Votos por bairro", f"Agregação por bairro/local — {ctx['nm_candidato']}")
 
-    if ctx["ano"] != 2024 or not table_exists("local_votacao"):
-        st.warning("Dados não encontrados para este filtro.")
+    if not table_exists("local_votacao"):
+        st.info("Dados não encontrados.")
         return
 
     if not ctx["cd_municipio"]:
@@ -62,5 +62,5 @@ def render(ctx: dict) -> None:
             df_show = df_l.assign(Anos=ctx["ano"]).rename(
                 columns={"local": "Local", "votos": "Votos", "nm_votavel": "NM_VOTAVEL"}
             )[["Local", "Anos", "Votos", "NM_VOTAVEL"]]
-            st.dataframe(df_show, hide_index=True, use_container_width=True)
+            st.dataframe(df_show, hide_index=True, use_container_width=True, height="content")
             st.caption(f"Total: {fmt_int(int(df_l['votos'].sum()))}")

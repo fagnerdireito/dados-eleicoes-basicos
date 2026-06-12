@@ -17,16 +17,8 @@ def render(ctx: dict) -> None:
         f"Votação de {ctx['nm_candidato']} por local — {ctx['nm_municipio']}",
     )
 
-    if ctx["ano"] != 2024 or not table_exists("local_votacao"):
-        st.warning(
-            "O cadastro de locais com latitude/longitude no banco hoje cobre apenas **2024**. "
-            "Para habilitar este mapa em outros anos, importe `eleitorado_local_votacao_<ANO>.zip` "
-            "do TSE em `local_votacao`."
-        )
-        st.caption(
-            "URL padrão: https://cdn.tse.jus.br/estatistica/sead/odsele/"
-            "eleitorado_locais_votacao/eleitorado_local_votacao_<ANO>.zip"
-        )
+    if not table_exists("local_votacao"):
+        st.info("Dados não encontrados.")
         return
 
     df = votos_candidato_por_local(

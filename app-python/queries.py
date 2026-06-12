@@ -6,9 +6,17 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
-from db import run_df
+from db import run_df, table_exists
 
 TTL = 3600
+
+# Locais de votação são cadastrais (UF + município + zona + seção), sem vínculo ao ano.
+_LV_JOIN = '''
+        JOIN local_votacao lv
+          ON lv."SG_UF" = b."SG_UF"
+         AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
+         AND lv."NR_ZONA" = b."NR_ZONA"
+         AND lv."NR_SECAO" = b."NR_SECAO"'''
 
 
 # ---------------------------------------------------------------------------
@@ -83,28 +91,54 @@ def perfil_escolaridade(ano: int, uf: str) -> pd.DataFrame:
 
 # ---------------------------------------------------------------------------
 # Catálogos para os filtros globais
+# (preferem catalogo_boletim — gerado por go_postgres/13_build_catalogo_filtros.go)
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=TTL, show_spinner=False)
+def _usa_catalogo_filtros() -> bool:
+    return table_exists("catalogo_boletim")
+
+
+@st.cache_data(ttl=TTL, show_spinner=False)
 def listar_anos() -> list[int]:
-    df = run_df(
-        'SELECT DISTINCT "ANO_ELEICAO"::int AS ano FROM boletim_de_urna ORDER BY 1'
-    )
+    if _usa_catalogo_filtros():
+        df = run_df("SELECT DISTINCT ano::int AS ano FROM catalogo_boletim ORDER BY 1")
+    else:
+        df = run_df(
+            'SELECT DISTINCT "ANO_ELEICAO"::int AS ano FROM boletim_de_urna ORDER BY 1'
+        )
     return df["ano"].tolist()
 
 
 @st.cache_data(ttl=TTL, show_spinner=False)
 def listar_ufs(ano: int) -> list[str]:
-    df = run_df(
-        'SELECT DISTINCT "SG_UF" AS uf FROM boletim_de_urna '
-        'WHERE "ANO_ELEICAO" = :ano ORDER BY 1',
-        {"ano": str(ano)},
-    )
+    if _usa_catalogo_filtros():
+        df = run_df(
+            "SELECT DISTINCT sg_uf AS uf FROM catalogo_boletim "
+            "WHERE ano = :ano ORDER BY 1",
+            {"ano": str(ano)},
+        )
+    else:
+        df = run_df(
+            'SELECT DISTINCT "SG_UF" AS uf FROM boletim_de_urna '
+            'WHERE "ANO_ELEICAO" = :ano ORDER BY 1',
+            {"ano": str(ano)},
+        )
     return df["uf"].tolist()
 
 
 @st.cache_data(ttl=TTL, show_spinner=False)
 def listar_municipios(ano: int, uf: str) -> pd.DataFrame:
+    if _usa_catalogo_filtros():
+        return run_df(
+            '''
+            SELECT DISTINCT cd_municipio AS cd, nm_municipio AS nm
+            FROM catalogo_boletim
+            WHERE ano = :ano AND sg_uf = :uf
+            ORDER BY 2
+            ''',
+            {"ano": str(ano), "uf": uf},
+        )
     return run_df(
         '''
         SELECT DISTINCT "CD_MUNICIPIO" AS cd, "NM_MUNICIPIO" AS nm
@@ -118,6 +152,20 @@ def listar_municipios(ano: int, uf: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=TTL, show_spinner=False)
 def listar_cargos(ano: int, uf: str, cd_municipio: Optional[str]) -> pd.DataFrame:
+    if _usa_catalogo_filtros():
+        where = ["ano = :ano", "sg_uf = :uf"]
+        params = {"ano": str(ano), "uf": uf}
+        if cd_municipio:
+            where.append("cd_municipio = :cd")
+            params["cd"] = cd_municipio
+        sql = f'''
+            SELECT DISTINCT cd_cargo AS cd, ds_cargo AS ds
+            FROM catalogo_boletim
+            WHERE {' AND '.join(where)}
+            ORDER BY 2
+        '''
+        return run_df(sql, params)
+
     where = ['"ANO_ELEICAO" = :ano', '"SG_UF" = :uf']
     params = {"ano": str(ano), "uf": uf}
     if cd_municipio:
@@ -136,6 +184,23 @@ def listar_cargos(ano: int, uf: str, cd_municipio: Optional[str]) -> pd.DataFram
 def listar_candidatos(
     ano: int, uf: str, cd_municipio: Optional[str], cd_cargo: str, limit: int = 200
 ) -> pd.DataFrame:
+    if _usa_catalogo_filtros():
+        where = ["ano = :ano", "sg_uf = :uf", "cd_cargo = :cargo"]
+        params = {"ano": str(ano), "uf": uf, "cargo": cd_cargo}
+        if cd_municipio:
+            where.append("cd_municipio = :cd")
+            params["cd"] = cd_municipio
+        sql = f'''
+            SELECT nr_votavel AS nr,
+                   nm_votavel AS nm,
+                   sg_partido,
+                   total_votos AS votos
+            FROM catalogo_boletim
+            WHERE {' AND '.join(where)}
+            ORDER BY nm_votavel ASC
+        '''
+        return run_df(sql, params)
+
     where = ['"ANO_ELEICAO" = :ano', '"SG_UF" = :uf', '"CD_CARGO_PERGUNTA" = :cargo',
              'COALESCE("DS_TIPO_VOTAVEL", \'\') NOT IN (\'Branco\', \'Nulo\')']
     params = {"ano": str(ano), "uf": uf, "cargo": cd_cargo, "lim": limit}
@@ -150,7 +215,7 @@ def listar_candidatos(
         FROM boletim_de_urna
         WHERE {' AND '.join(where)}
         GROUP BY 1
-        ORDER BY votos DESC
+        ORDER BY MAX("NM_VOTAVEL") ASC
         LIMIT :lim
     '''
     return run_df(sql, params)
@@ -314,7 +379,7 @@ def votos_candidato_por_municipio(
 
 
 # ---------------------------------------------------------------------------
-# Aba "Onde estão os votos no município" (mapa de bolhas) — só 2024
+# Aba "Onde estão os votos no município" (mapa de bolhas)
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=TTL, show_spinner=False)
@@ -322,19 +387,14 @@ def votos_candidato_por_local(
     ano: int, uf: str, cd_municipio: str, cd_cargo: str, nr_votavel: str
 ) -> pd.DataFrame:
     return run_df(
-        '''
+        f'''
         SELECT lv."NM_LOCAL_VOTACAO" AS nm_local,
                lv."NM_BAIRRO" AS bairro,
                lv."NR_LATITUDE"::float AS lat,
                lv."NR_LONGITUDE"::float AS lng,
                SUM(b."QT_VOTOS"::bigint) AS votos
         FROM boletim_de_urna b
-        JOIN local_votacao lv
-          ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
-         AND lv."SG_UF" = b."SG_UF"
-         AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
-         AND lv."NR_ZONA" = b."NR_ZONA"
-         AND lv."NR_SECAO" = b."NR_SECAO"
+        {_LV_JOIN}
         WHERE b."ANO_ELEICAO" = :ano AND b."SG_UF" = :uf
           AND b."CD_MUNICIPIO" = :cd
           AND b."CD_CARGO_PERGUNTA" = :cargo AND b."NR_VOTAVEL" = :nr
@@ -437,10 +497,10 @@ def nome_local(ano: int, uf: str, cd_municipio: str, nr_local: str) -> str | Non
         '''
         SELECT MAX("NM_LOCAL_VOTACAO") AS nm
         FROM local_votacao
-        WHERE "AA_ELEICAO" = :ano AND "SG_UF" = :uf
+        WHERE "SG_UF" = :uf
           AND "CD_MUNICIPIO" = :cd AND "NR_LOCAL_VOTACAO" = :lv
         ''',
-        {"ano": str(ano), "uf": uf, "cd": cd_municipio, "lv": nr_local},
+        {"uf": uf, "cd": cd_municipio, "lv": nr_local},
     )
     if df.empty:
         return None
@@ -497,7 +557,7 @@ def top_candidatos_no_local(
 
 
 # ---------------------------------------------------------------------------
-# Aba "Votos por bairro" (fallback via local_votacao, só 2024)
+# Aba "Votos por bairro" (via local_votacao)
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=TTL, show_spinner=False)
@@ -505,17 +565,12 @@ def votos_por_bairro(
     ano: int, uf: str, cd_municipio: str, cd_cargo: str, nr_votavel: str
 ) -> pd.DataFrame:
     return run_df(
-        '''
+        f'''
         SELECT COALESCE(NULLIF(TRIM(lv."NM_BAIRRO"), ''), '(sem bairro)') AS bairro,
                MAX(b."NM_VOTAVEL") AS nm_votavel,
                SUM(b."QT_VOTOS"::bigint) AS votos
         FROM boletim_de_urna b
-        JOIN local_votacao lv
-          ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
-         AND lv."SG_UF" = b."SG_UF"
-         AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
-         AND lv."NR_ZONA" = b."NR_ZONA"
-         AND lv."NR_SECAO" = b."NR_SECAO"
+        {_LV_JOIN}
         WHERE b."ANO_ELEICAO" = :ano AND b."SG_UF" = :uf
           AND b."CD_MUNICIPIO" = :cd AND b."CD_CARGO_PERGUNTA" = :cargo
           AND b."NR_VOTAVEL" = :nr
@@ -531,17 +586,12 @@ def votos_por_local_candidato(
     ano: int, uf: str, cd_municipio: str, cd_cargo: str, nr_votavel: str
 ) -> pd.DataFrame:
     return run_df(
-        '''
+        f'''
         SELECT lv."NM_LOCAL_VOTACAO" AS local,
                MAX(b."NM_VOTAVEL") AS nm_votavel,
                SUM(b."QT_VOTOS"::bigint) AS votos
         FROM boletim_de_urna b
-        JOIN local_votacao lv
-          ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
-         AND lv."SG_UF" = b."SG_UF"
-         AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
-         AND lv."NR_ZONA" = b."NR_ZONA"
-         AND lv."NR_SECAO" = b."NR_SECAO"
+        {_LV_JOIN}
         WHERE b."ANO_ELEICAO" = :ano AND b."SG_UF" = :uf
           AND b."CD_MUNICIPIO" = :cd AND b."CD_CARGO_PERGUNTA" = :cargo
           AND b."NR_VOTAVEL" = :nr
@@ -577,14 +627,7 @@ def comparativo_votos_territorio(
 
     # Configuração por dimensão: como derivar o "território" e quais
     # campos do boletim entram no GROUP BY.
-    _LV_JOIN = (
-        '''JOIN local_votacao lv
-              ON lv."AA_ELEICAO" = b."ANO_ELEICAO"
-             AND lv."SG_UF" = b."SG_UF"
-             AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
-             AND lv."NR_ZONA" = b."NR_ZONA"
-             AND lv."NR_SECAO" = b."NR_SECAO"'''
-    )
+    lv_join = _LV_JOIN.strip()
     dim_cfg = {
         "zona": {
             "territorio_expr": 'b."NR_ZONA"',
@@ -600,7 +643,7 @@ def comparativo_votos_territorio(
             "territorio_expr": (
                 'COALESCE(NULLIF(TRIM(lv."NM_BAIRRO"), \'\'), \'(sem bairro)\')'
             ),
-            "join_clause": _LV_JOIN,
+            "join_clause": lv_join,
             "group_extra": 'lv."NM_BAIRRO"',
         },
         "local": {
@@ -608,7 +651,7 @@ def comparativo_votos_territorio(
                 'COALESCE(NULLIF(TRIM(lv."NM_LOCAL_VOTACAO"), \'\'), '
                 "'Local ' || b.\"NR_LOCAL_VOTACAO\")"
             ),
-            "join_clause": _LV_JOIN,
+            "join_clause": lv_join,
             "group_extra": 'lv."NM_LOCAL_VOTACAO", b."NR_LOCAL_VOTACAO"',
         },
     }

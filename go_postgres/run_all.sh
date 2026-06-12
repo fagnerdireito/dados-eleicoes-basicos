@@ -31,4 +31,8 @@ echo "=== 7/7 - Importando estados (UF + DF) ==="
 go run 7_import_estados.go
 
 echo ""
+echo "=== Catálogo de filtros (ano/UF/cidade/cargo/candidato) ==="
+go run 13_build_catalogo_filtros.go
+
+echo ""
 echo "=== Tudo concluído com sucesso! ==="

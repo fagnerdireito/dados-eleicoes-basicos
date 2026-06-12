@@ -1,12 +1,17 @@
 """Conexão com PostgreSQL e helpers de execução de queries.
 
-A URL de conexão vem do `.env` na raiz do projeto (mesma usada pelos scripts Go).
-Ordem de precedência:
+A URL de conexão é montada exclusivamente a partir das variáveis
+`PGSQL_VECTOR_*` no `.env` da raiz do projeto (mesma pasta que contém
+`app-python/`, `go_postgres/`, `dados/` etc.):
 
-1. variável `DATABASE_URL` no ambiente (override explícito)
-2. bloco `PGSQL_ELEICAO_*` no `.env`  (HOST, PORT, DATABASE, USERNAME, PASSWORD)
-3. bloco `PGSQL_VECTOR_*` no `.env`  (mesma estrutura — usado em ambiente local)
-4. fallback hardcoded para `127.0.0.1:5432` (último recurso, só pra dev local)
+    PGSQL_VECTOR_HOST
+    PGSQL_VECTOR_PORT
+    PGSQL_VECTOR_DATABASE
+    PGSQL_VECTOR_USERNAME
+    PGSQL_VECTOR_PASSWORD
+
+Se essas variáveis não estiverem preenchidas, o app falha rápido com
+mensagem clara em vez de tentar fallback para outras chaves.
 """
 from __future__ import annotations
 
@@ -22,47 +27,50 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-# Carrega o .env da raiz do projeto (pai do app-python/) **antes** de qualquer
+# Carrega o .env da raiz do projeto (pai do app-python/) antes de qualquer
 # leitura de variáveis de ambiente. `override=False` para respeitar variáveis
-# já definidas no shell (ex.: DATABASE_URL exportado manualmente).
+# já definidas no shell (ex.: `export PGSQL_VECTOR_HOST=...`).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_REPO_ROOT / ".env", override=False)
 
 
-def _build_dsn_from_block(prefix: str) -> str | None:
-    """Monta DSN postgres:// a partir de PREFIX_HOST/PORT/DATABASE/USERNAME/PASSWORD.
-    Devolve `None` se não houver pelo menos host + database + username."""
-    host = os.environ.get(f"{prefix}_HOST")
-    db = os.environ.get(f"{prefix}_DATABASE")
-    user = os.environ.get(f"{prefix}_USERNAME")
-    if not (host and db and user):
-        return None
-    port = os.environ.get(f"{prefix}_PORT", "5432")
-    password = os.environ.get(f"{prefix}_PASSWORD", "")
+class _MissingEnvError(RuntimeError):
+    """Erro disparado quando o bloco PGSQL_VECTOR_* não está completo."""
+
+
+def _require(key: str) -> str:
+    value = os.environ.get(key, "").strip()
+    if not value:
+        raise _MissingEnvError(
+            f"Variável `{key}` não definida. Verifique o `.env` na raiz do projeto "
+            "e garanta que o bloco PGSQL_VECTOR_* esteja descomentado e preenchido."
+        )
+    return value
+
+
+@lru_cache(maxsize=1)
+def _database_url() -> str:
+    host = _require("PGSQL_VECTOR_HOST")
+    database = _require("PGSQL_VECTOR_DATABASE")
+    user = _require("PGSQL_VECTOR_USERNAME")
+    port = os.environ.get("PGSQL_VECTOR_PORT", "5432").strip() or "5432"
+    password = os.environ.get("PGSQL_VECTOR_PASSWORD", "")
+
     # Escapa user/password para suportar caracteres como `*`, `@`, `:`.
     userinfo = quote_plus(user)
     if password:
         userinfo = f"{userinfo}:{quote_plus(password)}"
-    return f"postgresql://{userinfo}@{host}:{port}/{db}?sslmode=disable"
-
-
-def _database_url() -> str:
-    # 1. override explícito via env do shell
-    direct = os.environ.get("DATABASE_URL")
-    if direct:
-        return direct
-    # 2. bloco do .env preferencial — eleição
-    for prefix in ("PGSQL_ELEICAO", "PGSQL_VECTOR"):
-        dsn = _build_dsn_from_block(prefix)
-        if dsn:
-            return dsn
-    # 3. fallback dev local
-    return "postgresql://fagnerdossgoncalves@127.0.0.1:5432/eleicoes?sslmode=disable"
+    return f"postgresql://{userinfo}@{host}:{port}/{database}?sslmode=disable"
 
 
 @st.cache_resource(show_spinner=False)
 def get_engine() -> Engine:
-    return create_engine(_database_url(), pool_pre_ping=True, future=True)
+    try:
+        url = _database_url()
+    except _MissingEnvError as exc:
+        st.error(str(exc))
+        st.stop()
+    return create_engine(url, pool_pre_ping=True, future=True)
 
 
 def run_df(sql: str, params: Mapping[str, Any] | None = None) -> pd.DataFrame:
