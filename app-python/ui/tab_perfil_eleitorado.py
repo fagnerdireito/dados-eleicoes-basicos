@@ -20,25 +20,30 @@ from queries import perfil_escolaridade, perfil_faixa_etaria, turnout_uf
 
 
 def render(ctx: dict) -> None:
+    cd_municipio = ctx.get("cd_municipio")
+    nm_municipio = ctx.get("nm_municipio")
+    recorte = f"{nm_municipio}/{ctx['uf']}" if cd_municipio else f"estado {ctx['uf']}"
+    recorte_kpi = "município" if cd_municipio else "UF"
+
     section_title(
-        f"Perfil do eleitorado (estado {ctx['uf']})",
+        f"Perfil do eleitorado ({recorte})",
         "Comparecimento do pleito e composição cadastral do eleitorado",
     )
 
-    # 1) Cards laterais — comparecimento e abstenção da UF
-    turnout = turnout_uf(ctx["ano"], ctx["uf"])
+    # 1) Cards laterais — comparecimento e abstenção
+    turnout = turnout_uf(ctx["ano"], ctx["uf"], cd_municipio)
 
     left, center, right = st.columns([1, 1.5, 1.5])
 
     with left:
         kpi(
-            "Comparecimento (UF)",
+            f"Comparecimento ({recorte_kpi})",
             fmt_pct(turnout["pct_comparec"]),
             f"{fmt_int(turnout['comparec'])} eleitores",
         )
         st.write("")
         kpi(
-            "Abstenção (UF)",
+            f"Abstenção ({recorte_kpi})",
             fmt_pct(turnout["pct_abstenc"]),
             f"{fmt_int(turnout['abstenc'])} eleitores",
         )
@@ -52,13 +57,13 @@ def render(ctx: dict) -> None:
             )
         return
 
-    ages = perfil_faixa_etaria(ctx["ano"], ctx["uf"])
-    education = perfil_escolaridade(ctx["ano"], ctx["uf"])
+    ages = perfil_faixa_etaria(ctx["ano"], ctx["uf"], cd_municipio)
+    education = perfil_escolaridade(ctx["ano"], ctx["uf"], cd_municipio)
 
     if ages.empty and education.empty:
         with center:
             st.info(
-                f"Não há registros em `perfil_eleitorado` para {ctx['ano']}/{ctx['uf']}. "
+                f"Não há registros em `perfil_eleitorado` para {ctx['ano']}/{recorte}. "
                 f"Verifique se o ZIP `perfil_eleitorado_{ctx['ano']}.zip` foi importado."
             )
         return

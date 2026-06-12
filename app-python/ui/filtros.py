@@ -2,7 +2,7 @@
 
 Os valores selecionados são espelhados na query string do navegador
 (`?ano=…&uf=…&municipio=…&cargo=…&candidato=…`; a aba ativa usa `tab=…`
-em ``app.py``) para links compartilháveis.
+em ``ui/tabs.py``) para links compartilháveis.
 """
 from __future__ import annotations
 

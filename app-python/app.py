@@ -12,19 +12,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-from ui import (
-    filtros,
-    tab_card_local,
-    tab_comparativo,
-    tab_perfil_eleitorado,
-    tab_ranking_municipio,
-    tab_resumo_municipio,
-    tab_sintese_territorial,
-    tab_sumario,
-    tab_votos_bairro,
-    tab_votos_estado,
-    tab_votos_municipio,
-)
+from ui import filtros, tabs
 
 LOGO_PATH = Path(__file__).resolve().parent.parent / "imagens" / "logo-elegis-light.png"
 FAVICON_PATH = Path(__file__).resolve().parent.parent / "imagens" / "favicon.png"
@@ -139,7 +127,8 @@ st.markdown(
 
       /* Navegação lazy (radio / segmented_control) — visual de abas */
       .st-key-app-tab-nav [data-testid="stRadio"],
-      .st-key-app-tab-nav [data-testid="stSegmentedControl"] {
+      .st-key-app-tab-nav [data-testid="stSegmentedControl"],
+      .st-key-app-tab-nav [data-testid="stButtonGroup"] {
         background: #f0f3f7;
         border: 1px solid #dce3eb;
         border-radius: 8px;
@@ -222,6 +211,14 @@ st.markdown(
           padding: 0 !important;
         }
         div[data-testid="stTabs"] [data-baseweb="tab-list"] { display: none !important; }
+        .st-key-app-tab-nav,
+        .element-container:has(.st-key-app-tab-nav) {
+          display: none !important;
+          height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+        }
       }
 
       @media (max-width: 768px) {
@@ -270,6 +267,39 @@ st.markdown(
         div[data-testid="stTabs"] [data-baseweb="tab"] button {
           white-space: normal;
           line-height: 1.25;
+        }
+
+        /* Abas independentes no mobile — cartões separados, não colados */
+        .st-key-app-tab-nav [data-testid="stRadio"],
+        .st-key-app-tab-nav [data-testid="stSegmentedControl"],
+        .st-key-app-tab-nav [data-testid="stButtonGroup"] {
+          background: transparent;
+          border: none;
+          padding: 0;
+        }
+        .st-key-app-tab-nav [data-testid="stRadio"] > div,
+        .st-key-app-tab-nav [data-testid="stButtonGroup"] {
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        .st-key-app-tab-nav [data-testid="stRadio"] label,
+        .st-key-app-tab-nav [data-testid="stBaseButton-segmented_control"],
+        .st-key-app-tab-nav [data-testid="stBaseButton-segmented_controlActive"] {
+          flex: 1 1 calc(50% - 0.25rem);
+          min-width: calc(50% - 0.25rem);
+          margin: 0 !important;
+          background: white;
+          border-radius: 8px !important;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: none;
+          white-space: normal;
+          line-height: 1.25;
+          text-align: center;
+        }
+        .st-key-app-tab-nav [data-testid="stRadio"] label:has(input:checked),
+        .st-key-app-tab-nav [data-testid="stBaseButton-segmented_controlActive"] {
+          border-color: #1f6feb !important;
+          box-shadow: inset 0 -2px 0 #1f6feb;
         }
       }
     </style>
@@ -382,72 +412,4 @@ ctx = filtros.render()
 
 st.divider()
 
-# ---------------------------------------------------------------------------
-# Abas — renderiza só a seção ativa (st.tabs executaria todas de uma vez)
-# ---------------------------------------------------------------------------
-_TAB_RENDERERS: list[tuple[str, object]] = [
-    ("1. Sumário", tab_sumario),
-    ("2. Resumo município", tab_resumo_municipio),
-    ("3. Perfil eleitorado (UF)", tab_perfil_eleitorado),
-    ("4. Votos no estado", tab_votos_estado),
-    ("5. Votos no município", tab_votos_municipio),
-    ("6. Ranking município", tab_ranking_municipio),
-    ("7. Síntese territorial", tab_sintese_territorial),
-    ("8. Votos por local de votação", tab_card_local),
-    ("9. Comparativo candidatos", tab_comparativo),
-    ("10. Votos por bairro", tab_votos_bairro),
-]
-_tab_labels = [label for label, _ in _TAB_RENDERERS]
-
-
-def _tab_id(label: str) -> str:
-    return label.split(".", 1)[0].strip()
-
-
-def _tab_from_id(tab_id: str | None, labels: list[str]) -> str | None:
-    if not tab_id:
-        return None
-    for label in labels:
-        if _tab_id(label) == tab_id:
-            return label
-    return None
-
-
-def _sync_tab_query_param(tab_label: str) -> None:
-    tab_id = _tab_id(tab_label)
-    if st.query_params.get("tab", "") == tab_id:
-        return
-    qp = dict(st.query_params.to_dict())
-    qp["tab"] = tab_id
-    st.query_params.from_dict(qp)
-
-
-if "app_tab" not in st.session_state:
-    _qp_tab = _tab_from_id(st.query_params.get("tab"), _tab_labels)
-    st.session_state.app_tab = _qp_tab or _tab_labels[0]
-elif st.session_state.app_tab not in _tab_labels:
-    st.session_state.app_tab = _tab_labels[0]
-
-with st.container(key="app-tab-nav"):
-    if hasattr(st, "segmented_control"):
-        _sel_tab = st.segmented_control(
-            "Seção",
-            _tab_labels,
-            key="app_tab",
-            label_visibility="collapsed",
-        )
-    else:
-        _sel_tab = st.radio(
-            "Seção",
-            _tab_labels,
-            horizontal=True,
-            key="app_tab",
-            label_visibility="collapsed",
-        )
-
-_sync_tab_query_param(_sel_tab)
-
-for _label, _module in _TAB_RENDERERS:
-    if _label == _sel_tab:
-        _module.render(ctx)
-        break
+tabs.render(ctx)
