@@ -7,22 +7,13 @@ contexto selecionado pelo usuário.
 from __future__ import annotations
 
 import base64
-import html
 from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
 
-from db import is_municipal
-from queries import _usa_catalogo_filtros
-from queries import (
-    listar_anos,
-    listar_cargos,
-    listar_candidatos,
-    listar_municipios,
-    listar_ufs,
-)
 from ui import (
+    filtros,
     tab_card_local,
     tab_comparativo,
     tab_perfil_eleitorado,
@@ -387,123 +378,7 @@ st.markdown(
 )
 
 
-# ---------------------------------------------------------------------------
-# Filtros globais
-# ---------------------------------------------------------------------------
-anos = listar_anos()
-if not anos:
-    st.error("Nenhuma eleição encontrada em `boletim_de_urna`. Importe os dados antes.")
-    st.stop()
-
-_FILTER_MARKER = '<span class="global-filter-marker" aria-hidden="true"></span>'
-c1, c2, c3, c4, c5 = st.columns([1, 1, 1.4, 1.4, 1.6])
-with c1:
-    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
-    ano = st.selectbox("Eleição/Ano", anos, index=len(anos) - 1)
-municipal = is_municipal(ano)
-
-ufs = listar_ufs(ano)
-with c2:
-    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
-    uf = st.selectbox("UF", ufs, index=0 if ufs else None)
-
-with c3:
-    municipios = listar_municipios(ano, uf)
-    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
-    if municipal:
-        if municipios.empty:
-            st.warning("Sem municípios para o filtro.")
-            st.stop()
-        idx = 0
-        municipio = st.selectbox(
-            "Cidade (obrigatório)",
-            options=municipios.index,
-            format_func=lambda i: f"{municipios.loc[i, 'nm']}",
-            index=idx,
-        )
-        cd_municipio = municipios.loc[municipio, "cd"]
-        nm_municipio = municipios.loc[municipio, "nm"]
-    else:
-        opts = [(None, "— (eleição geral)")] + [
-            (row.cd, row.nm) for row in municipios.itertuples(index=False)
-        ]
-        sel = st.selectbox(
-            "Cidade (opcional em geral)",
-            opts,
-            format_func=lambda x: x[1],
-            index=0,
-        )
-        cd_municipio = sel[0]
-        nm_municipio = sel[1] if cd_municipio else None
-
-cargos = listar_cargos(ano, uf, cd_municipio)
-with c4:
-    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
-    if cargos.empty:
-        st.warning("Sem cargos para o filtro.")
-        st.stop()
-    sel_cargo = st.selectbox(
-        "Cargo",
-        cargos.index,
-        format_func=lambda i: cargos.loc[i, "ds"].title(),
-    )
-    cd_cargo = cargos.loc[sel_cargo, "cd"]
-    ds_cargo = cargos.loc[sel_cargo, "ds"].title()
-
-cands = listar_candidatos(ano, uf, cd_municipio, cd_cargo)
-with c5:
-    st.markdown(_FILTER_MARKER, unsafe_allow_html=True)
-    if cands.empty:
-        st.warning("Sem candidatos para o filtro.")
-        st.stop()
-    sel_cand = st.selectbox(
-        "Candidato foco",
-        cands.index,
-        format_func=lambda i: f"{cands.loc[i, 'nm']} ({cands.loc[i, 'sg_partido'] or '—'})",
-    )
-    nr_votavel = cands.loc[sel_cand, "nr"]
-    nm_candidato = cands.loc[sel_cand, "nm"]
-    sg_partido = cands.loc[sel_cand, "sg_partido"] or "—"
-
-cidade_impressao = nm_municipio if nm_municipio else "— (eleição geral)"
-candidato_impressao = f"{nm_candidato} ({sg_partido})"
-st.markdown(
-    '<div class="print-filter-summary">'
-    f"{html.escape(str(ano))} | {html.escape(uf)} | "
-    f"{html.escape(cidade_impressao)} | {html.escape(ds_cargo)} | "
-    f"{html.escape(candidato_impressao)}"
-    "</div>",
-    unsafe_allow_html=True,
-)
-
-with st.sidebar:
-    st.markdown("### Cache")
-    if st.button("Limpar cache", use_container_width=True):
-        st.cache_data.clear()
-        st.success("Cache limpo. Recarregando…")
-        st.rerun()
-    if _usa_catalogo_filtros():
-        st.caption("Filtros acelerados via `catalogo_boletim`.")
-    else:
-        st.caption(
-            "Para filtros mais rápidos, rode "
-            "`go run go_postgres/13_build_catalogo_filtros.go` após importar o boletim."
-        )
-    st.markdown("---")
-    # st.caption("Banco: `eleicoes` em PostgreSQL local.")
-    # st.caption("Tabela base: `boletim_de_urna` (granular por seção).")
-
-ctx = {
-    "ano": int(ano),
-    "uf": uf,
-    "cd_municipio": cd_municipio,
-    "nm_municipio": nm_municipio,
-    "cd_cargo": cd_cargo,
-    "ds_cargo": ds_cargo,
-    "nr_votavel": nr_votavel,
-    "nm_candidato": nm_candidato,
-    "municipal": municipal,
-}
+ctx = filtros.render()
 
 st.divider()
 
@@ -523,7 +398,34 @@ _TAB_RENDERERS: list[tuple[str, object]] = [
     ("10. Votos por bairro", tab_votos_bairro),
 ]
 _tab_labels = [label for label, _ in _TAB_RENDERERS]
-if "app_tab" not in st.session_state or st.session_state.app_tab not in _tab_labels:
+
+
+def _tab_id(label: str) -> str:
+    return label.split(".", 1)[0].strip()
+
+
+def _tab_from_id(tab_id: str | None, labels: list[str]) -> str | None:
+    if not tab_id:
+        return None
+    for label in labels:
+        if _tab_id(label) == tab_id:
+            return label
+    return None
+
+
+def _sync_tab_query_param(tab_label: str) -> None:
+    tab_id = _tab_id(tab_label)
+    if st.query_params.get("tab", "") == tab_id:
+        return
+    qp = dict(st.query_params.to_dict())
+    qp["tab"] = tab_id
+    st.query_params.from_dict(qp)
+
+
+if "app_tab" not in st.session_state:
+    _qp_tab = _tab_from_id(st.query_params.get("tab"), _tab_labels)
+    st.session_state.app_tab = _qp_tab or _tab_labels[0]
+elif st.session_state.app_tab not in _tab_labels:
     st.session_state.app_tab = _tab_labels[0]
 
 with st.container(key="app-tab-nav"):
@@ -542,6 +444,8 @@ with st.container(key="app-tab-nav"):
             key="app_tab",
             label_visibility="collapsed",
         )
+
+_sync_tab_query_param(_sel_tab)
 
 for _label, _module in _TAB_RENDERERS:
     if _label == _sel_tab:

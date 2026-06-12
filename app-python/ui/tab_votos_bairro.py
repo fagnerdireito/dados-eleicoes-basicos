@@ -47,8 +47,8 @@ def render(ctx: dict) -> None:
             st.caption("Sem votos por bairro para o filtro.")
         else:
             df_show = df_b.assign(Anos=ctx["ano"]).rename(
-                columns={"bairro": "Bairro", "votos": "Votos", "nm_votavel": "NM_VOTAVEL"}
-            )[["Bairro", "Anos", "Votos", "NM_VOTAVEL"]]
+                columns={"bairro": "Bairro", "votos": "Votos", "nm_votavel": "Candidato"}
+            )[["Bairro", "Anos", "Votos", "Candidato"]]
             st.dataframe(df_show, hide_index=True, use_container_width=True)
             st.caption(f"Total: {fmt_int(int(df_b['votos'].sum()))}")
 
@@ -60,7 +60,7 @@ def render(ctx: dict) -> None:
             st.caption("Sem votos por local para o filtro.")
         else:
             df_show = df_l.assign(Anos=ctx["ano"]).rename(
-                columns={"local": "Local", "votos": "Votos", "nm_votavel": "NM_VOTAVEL"}
-            )[["Local", "Anos", "Votos", "NM_VOTAVEL"]]
+                columns={"local": "Local", "votos": "Votos", "nm_votavel": "Candidato"}
+            )[["Local", "Anos", "Votos", "Candidato"]]
             st.dataframe(df_show, hide_index=True, use_container_width=True, height="content")
             st.caption(f"Total: {fmt_int(int(df_l['votos'].sum()))}")

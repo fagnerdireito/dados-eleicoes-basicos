@@ -1,4 +1,5 @@
 from . import (  # noqa: F401
+    filtros,
     tab_card_local,
     tab_comparativo,
     tab_perfil_eleitorado,

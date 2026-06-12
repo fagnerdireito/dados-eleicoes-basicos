@@ -470,6 +470,29 @@ def sintese_territorial(
     )
 
 
+@st.cache_data(ttl=TTL, show_spinner=False)
+def sintese_territorial_uf(ano: int, uf: str, cd_cargo: str) -> pd.DataFrame:
+    """Soma de votos válidos por candidato em toda a UF (eleição geral sem município)."""
+    return run_df(
+        '''
+        WITH agg AS (
+          SELECT "NR_VOTAVEL" AS nr, MAX("NM_VOTAVEL") AS nm,
+                 MAX("SG_PARTIDO") AS partido, SUM("QT_VOTOS"::bigint) AS votos
+          FROM boletim_de_urna
+          WHERE "ANO_ELEICAO" = :ano AND "SG_UF" = :uf
+            AND "CD_CARGO_PERGUNTA" = :cargo
+            AND COALESCE("DS_TIPO_VOTAVEL", '') NOT IN ('Branco', 'Nulo')
+          GROUP BY 1
+        ),
+        tot AS (SELECT SUM(votos) AS t FROM agg)
+        SELECT nr, nm, partido, votos,
+               (votos::float / NULLIF((SELECT t FROM tot), 0) * 100) AS pct
+        FROM agg ORDER BY votos DESC
+        ''',
+        {"ano": str(ano), "uf": uf, "cargo": cd_cargo},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Aba "Votos por local de votação"
 # ---------------------------------------------------------------------------
