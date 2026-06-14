@@ -31,6 +31,63 @@ UF_CODIGO_IBGE = {
 
 _PLOTLY_STATIC = {"staticPlot": True, "displayModeBar": False}
 
+_PRINT_ZOOM_CSS = """
+<style>
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 0.35cm;
+    }
+
+    .main .block-container {
+      padding-left: 0.2rem !important;
+      padding-right: 0.2rem !important;
+      max-width: 100% !important;
+    }
+
+    .st-key-votos-estado-print {
+      zoom: 0.42 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      overflow: visible !important;
+    }
+
+    .st-key-votos-estado-print
+      [data-testid="stHorizontalBlock"]:has([data-testid="stPlotlyChart"]) {
+      display: grid !important;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      gap: 0.15rem !important;
+      overflow: visible !important;
+    }
+
+    .st-key-votos-estado-print
+      [data-testid="stHorizontalBlock"]:has([data-testid="stPlotlyChart"])
+      > [data-testid="stColumn"] {
+      max-width: 100% !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      overflow: visible !important;
+    }
+
+    .st-key-votos-estado-print [data-testid="stPlotlyChart"],
+    .st-key-votos-estado-print [data-testid="stPlotlyChart"] > div,
+    .st-key-votos-estado-print [data-testid="stPlotlyChart"] iframe {
+      max-width: 100% !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    .st-key-votos-estado-print .element-container {
+      max-width: 100% !important;
+    }
+  }
+</style>
+"""
+
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def _load_geojson(uf: str) -> dict | None:
@@ -163,6 +220,12 @@ def _build_coropletico(
 
 
 def render(ctx: dict) -> None:
+    st.markdown(_PRINT_ZOOM_CSS, unsafe_allow_html=True)
+    with st.container(key="votos-estado-print"):
+        _render(ctx)
+
+
+def _render(ctx: dict) -> None:
     cd_municipio = ctx.get("cd_municipio")
     nm_municipio = ctx.get("nm_municipio")
     if nm_municipio:

@@ -19,7 +19,82 @@ from db import table_exists
 from queries import perfil_escolaridade, perfil_faixa_etaria, turnout_uf
 
 
+# Só na impressão: escala para A4 e força 3 colunas lado a lado (grid),
+# sem alterar o layout em tela.
+_PRINT_ZOOM_CSS = """
+<style>
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 0.35cm;
+    }
+
+    .main .block-container {
+      padding-left: 0.2rem !important;
+      padding-right: 0.2rem !important;
+      max-width: 100% !important;
+    }
+
+    .st-key-perfil-eleitorado-print {
+      zoom: 0.42 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      overflow: visible !important;
+    }
+
+    /* Linha com cards + dois gráficos — grid evita quebra em A4 */
+    .st-key-perfil-eleitorado-print
+      [data-testid="stHorizontalBlock"]:has([data-testid="stPlotlyChart"]) {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1.5fr) !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      gap: 0.15rem !important;
+      overflow: visible !important;
+    }
+
+    .st-key-perfil-eleitorado-print
+      [data-testid="stHorizontalBlock"]:has([data-testid="stPlotlyChart"])
+      > [data-testid="stColumn"] {
+      max-width: 100% !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      overflow: visible !important;
+    }
+
+    /* Cards de comparecimento / abstenção */
+    .st-key-perfil-eleitorado-print [data-testid="stVerticalBlockBorderWrapper"] {
+      max-width: 100% !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    /* Gráficos Plotly */
+    .st-key-perfil-eleitorado-print [data-testid="stPlotlyChart"],
+    .st-key-perfil-eleitorado-print [data-testid="stPlotlyChart"] > div,
+    .st-key-perfil-eleitorado-print [data-testid="stPlotlyChart"] iframe {
+      max-width: 100% !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    .st-key-perfil-eleitorado-print .element-container {
+      max-width: 100% !important;
+    }
+  }
+</style>
+"""
+
+
 def render(ctx: dict) -> None:
+    st.markdown(_PRINT_ZOOM_CSS, unsafe_allow_html=True)
+    with st.container(key="perfil-eleitorado-print"):
+        _render(ctx)
+
+
+def _render(ctx: dict) -> None:
     cd_municipio = ctx.get("cd_municipio")
     nm_municipio = ctx.get("nm_municipio")
     recorte = f"{nm_municipio}/{ctx['uf']}" if cd_municipio else f"estado {ctx['uf']}"
