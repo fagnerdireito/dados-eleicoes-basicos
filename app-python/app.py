@@ -27,9 +27,16 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      /* Streamlit fixa a barra superior (Deploy/menu); padding baixo cortava o título. */
-      .block-container {
-        padding-top: 4.5rem;
+      /* Esconde a barra superior nativa do Streamlit (Deploy / menu). */
+      header[data-testid="stHeader"],
+      [data-testid="stToolbar"],
+      [data-testid="stToolbarActions"] {
+        display: none !important;
+      }
+
+      .block-container,
+      .stMainBlockContainer {
+        padding-top: 1rem;
         padding-bottom: 100px;
       }
       h1, h2, h3 { color: #0b2545; }

@@ -130,7 +130,7 @@ def render() -> dict[str, Any]:
             muni_codes = municipios["cd"].astype(str).tolist()
             muni_names = dict(zip(muni_codes, municipios["nm"], strict=False))
             cd_municipio = st.selectbox(
-                "Cidade (obrigatório)",
+                "Município*",
                 muni_codes,
                 index=_index_for(muni_codes, qp_municipio, default=0),
                 format_func=lambda cd: muni_names[cd],
