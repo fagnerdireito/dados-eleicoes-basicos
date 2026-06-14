@@ -10,6 +10,17 @@ from queries import votos_candidato_por_local
 _PRINT_ZOOM_CSS = """
 <style>
   @media print {
+    @page {
+      size: A4 portrait;
+      margin: 0.35cm;
+    }
+
+    # .main .block-container {
+    #   padding-left: 0.2rem !important;
+    #   padding-right: 0.2rem !important;
+    #   max-width: 100% !important;
+    # }
+
     .st-key-votos-municipio-print
       [data-testid="stHorizontalBlock"]:has(iframe) {
       display: block !important;
