@@ -128,3 +128,17 @@
     @apply font-sans;
   }
 }
+
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  html,
+  body {
+    margin: 10px 10px !important;
+    padding: 10px 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
