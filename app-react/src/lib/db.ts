@@ -2,8 +2,8 @@ import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 import path from 'path';
 
-// Load .env from the root of the project (dados-eleicoes-basicos)
-dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+// Load .env from the app-react root directory
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const host = process.env.PGSQL_VECTOR_HOST;
 const port = process.env.PGSQL_VECTOR_PORT;
