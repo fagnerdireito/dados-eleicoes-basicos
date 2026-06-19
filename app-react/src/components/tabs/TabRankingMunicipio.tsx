@@ -1,7 +1,7 @@
-import { listarCargos } from '@/app/actions';
+import { listarCargos, listarMunicipios } from '@/app/actions';
 import { rankingMunicipio } from '@/app/actions-tab6';
 import { resolverCapital } from '@/lib/capitais';
-import { Info } from 'lucide-react';
+import { Info, MapPin } from 'lucide-react';
 
 function fmtInt(val: number) {
   return new Intl.NumberFormat('pt-BR').format(val);
@@ -59,13 +59,15 @@ export async function TabRankingMunicipio({ searchParams }: { searchParams: { [k
     usandoCapital = true;
   }
 
-  const [dfAtual, dfAnterior, cargos] = await Promise.all([
+  const [dfAtual, dfAnterior, cargos, municipios] = await Promise.all([
     rankingMunicipio(anoAtual, uf, municipioEfetivo, cargo),
     rankingMunicipio(anoAnterior, uf, municipioEfetivo, cargo),
     listarCargos(anoAtual, uf, municipioEfetivo),
+    listarMunicipios(anoAtual, uf),
   ]);
 
   const cargoLabel = cargos.find((c) => String(c.cd) === cargo)?.ds || cargo;
+  const municipioNome = municipios.find((m) => String(m.cd) === municipioEfetivo)?.nm ?? municipioEfetivo;
 
   return (
     <div className="flex flex-col gap-6">
@@ -80,7 +82,13 @@ export async function TabRankingMunicipio({ searchParams }: { searchParams: { [k
       )}
 
       <div>
-        <h2 className="text-2xl font-bold text-[#0b2545]">Ranking geral no município</h2>
+        <h2 className="flex flex-wrap items-center gap-3 text-2xl font-bold text-[#0b2545]">
+          Ranking geral no município
+          <span className="recorte-pill chart-print-bg inline-flex items-center gap-2 rounded-full bg-indigo-600/70 px-4 py-1.5 text-base font-semibold text-white">
+            {municipioNome}
+            <MapPin className="h-4 w-4 shrink-0" strokeWidth={2.25} />
+          </span>
+        </h2>
         <p className="text-gray-500">Top 10 candidatos mais votados · {cargoLabel}</p>
       </div>
 

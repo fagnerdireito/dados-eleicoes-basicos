@@ -62,7 +62,7 @@ export function DataLoadingIndicator() {
 
 export function TabContentLoadingFallback() {
   return (
-    <div className="flex min-h-[320px] items-center justify-center">
+    <div className="flex min-h-[320px] items-start justify-center pt-12">
       <DataLoadingIndicator />
     </div>
   );
@@ -74,7 +74,7 @@ export function HomeTabPanel({ children }: { children: ReactNode }) {
   return (
     <div className="glass-panel relative min-h-[400px] rounded-xl p-6 print:mt-0 print:w-full print:p-0 print:shadow-none print:rounded-none print:bg-white!">
       {isPending && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-white/55 backdrop-blur-[2px] print:hidden">
+        <div className="absolute inset-0 z-20 flex items-start justify-center rounded-xl bg-white/55 pt-12 backdrop-blur-[2px] print:hidden">
           <DataLoadingIndicator />
         </div>
       )}

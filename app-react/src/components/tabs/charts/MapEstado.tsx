@@ -204,7 +204,7 @@ export function MapEstado({ uf, data, totalVotos }: { uf: string; data: any[]; t
           Total de votos no estado · {new Intl.NumberFormat('pt-BR').format(totalVotos)}
           <Vote className="h-4 w-4 shrink-0" strokeWidth={2.25} />
         </span>
-        <ol className="text-sm lg:max-h-none lg:overflow-visible print:overflow-visible">
+        <ol className="text-sm max-h-[615px] overflow-y-auto pr-2 print:max-h-none print:overflow-visible print:pr-0">
           {topMunicipios.map((m, i) => (
             <li
               key={m.cd ?? m.cd_ibge ?? i}

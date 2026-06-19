@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { listarAnos, listarUfs, listarMunicipios, listarCargos, listarCandidatos } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { useNavigationLoading } from '@/components/NavigationLoading';
+import { X } from 'lucide-react';
 
 type CandidatoOption = {
   nr: string;
@@ -94,6 +96,36 @@ function formatCandidatoLabel(c: { nm: string; sg_partido?: string }) {
   return c.sg_partido ? `${c.nm} (${c.sg_partido})` : c.nm;
 }
 
+// Normaliza texto para busca: remove acentos e ignora caixa, para que os
+// filtros com autocomplete encontrem ex.: "goiania" -> "GOIÂNIA".
+function normalizeText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function FilterClearButton({
+  onClick,
+  ariaLabel,
+}: {
+  onClick: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+    >
+      <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+    </button>
+  );
+}
+
 function SearchableSelect({
   options,
   value,
@@ -104,6 +136,8 @@ function SearchableSelect({
   getOptionLabel,
   className = 'w-full min-w-[200px] max-w-[280px]',
   clearOnFocus = false,
+  allowClear = false,
+  clearAriaLabel = 'Limpar seleção',
 }: {
   options: { [key: string]: string }[];
   value: string | null;
@@ -114,11 +148,26 @@ function SearchableSelect({
   getOptionLabel: (option: { [key: string]: string }) => string;
   className?: string;
   clearOnFocus?: boolean;
+  allowClear?: boolean;
+  clearAriaLabel?: string;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState({ top: 0, left: 0, width: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const updateDropdownPosition = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const rect = input.getBoundingClientRect();
+    setDropdownRect({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
 
   useEffect(() => {
     if (document.activeElement === inputRef.current) return;
@@ -149,7 +198,7 @@ function SearchableSelect({
     }
 
     const exact = options.find(
-      (option) => getOptionLabel(option).toLowerCase() === trimmed.toLowerCase(),
+      (option) => normalizeText(getOptionLabel(option)) === normalizeText(trimmed),
     );
 
     if (exact) {
@@ -173,6 +222,9 @@ function SearchableSelect({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        const target = event.target as HTMLElement;
+        if (target.closest('[data-filter-combobox-list]')) return;
+
         commitQuery();
         setOpen(false);
       }
@@ -182,10 +234,32 @@ function SearchableSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [commitQuery]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    updateDropdownPosition();
+    window.addEventListener('resize', updateDropdownPosition);
+    window.addEventListener('scroll', updateDropdownPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updateDropdownPosition);
+      window.removeEventListener('scroll', updateDropdownPosition, true);
+    };
+  }, [open, updateDropdownPosition, query]);
+
   const filtered = options.filter((option) => {
     if (!query.trim()) return true;
-    return getOptionLabel(option).toLowerCase().includes(query.toLowerCase());
+    return normalizeText(getOptionLabel(option)).includes(normalizeText(query));
   });
+
+  const clearSelection = () => {
+    onChange(null);
+    setQuery('');
+    setOpen(false);
+    inputRef.current?.focus();
+  };
+
+  const showClearButton = allowClear && Boolean(value) && !disabled;
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
@@ -195,7 +269,7 @@ function SearchableSelect({
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
-        className="w-full rounded-md border bg-white p-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+        className={`w-full rounded-md border bg-white p-2 text-sm disabled:cursor-not-allowed disabled:opacity-50${showClearButton ? ' pr-8' : ''}`}
         placeholder={placeholder}
         value={query}
         disabled={disabled}
@@ -206,6 +280,7 @@ function SearchableSelect({
         }}
         onFocus={() => {
           setOpen(true);
+          updateDropdownPosition();
           if (clearOnFocus) {
             setQuery('');
           } else {
@@ -213,8 +288,11 @@ function SearchableSelect({
           }
         }}
         onBlur={() => {
-          commitQuery();
-          setOpen(false);
+          window.setTimeout(() => {
+            if (document.activeElement?.closest('[data-filter-combobox-list]')) return;
+            commitQuery();
+            setOpen(false);
+          }, 0);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
@@ -222,37 +300,52 @@ function SearchableSelect({
             setOpen(false);
             inputRef.current?.blur();
           }
+          if (e.key === 'Backspace' && !query && value) {
+            clearSelection();
+          }
         }}
       />
 
-      {open && !disabled && filtered.length > 0 && (
-        <ul
-          role="listbox"
-          className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-white shadow-lg"
-        >
-          {filtered.map((option) => {
-            const optionValue = getOptionValue(option);
-            return (
-              <li key={optionValue} role="option">
-                <button
-                  type="button"
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    if (optionValue !== value) {
-                      onChange(optionValue);
-                    }
-                    setQuery(getOptionLabel(option));
-                    setOpen(false);
-                  }}
-                >
-                  {getOptionLabel(option)}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+      {showClearButton && (
+        <FilterClearButton ariaLabel={clearAriaLabel} onClick={clearSelection} />
       )}
+
+      {open && !disabled && filtered.length > 0 && typeof document !== 'undefined' &&
+        createPortal(
+          <ul
+            data-filter-combobox-list
+            role="listbox"
+            className="fixed z-[200] max-h-56 overflow-y-auto rounded-md border bg-white shadow-lg"
+            style={{
+              top: dropdownRect.top,
+              left: dropdownRect.left,
+              width: dropdownRect.width,
+            }}
+          >
+            {filtered.map((option) => {
+              const optionValue = getOptionValue(option);
+              return (
+                <li key={optionValue} role="option">
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      if (optionValue !== value) {
+                        onChange(optionValue);
+                      }
+                      setQuery(getOptionLabel(option));
+                      setOpen(false);
+                    }}
+                  >
+                    {getOptionLabel(option)}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -276,19 +369,36 @@ function CandidatoAutocomplete({
       disabled={disabled}
       getOptionValue={(c) => String(c.nr)}
       getOptionLabel={(c) => formatCandidatoLabel(c as CandidatoOption)}
-      className="w-full min-w-[320px] max-w-[420px]"
+      className="w-full min-w-[220px] max-w-[280px]"
       clearOnFocus
+      allowClear
+      clearAriaLabel="Limpar candidato"
     />
   );
 }
 
+function isMunicipalAno(ano: number | null) {
+  return ano ? ano % 4 === 0 && ano >= 2020 : false;
+}
+
 function filtersFromParams(searchParams: URLSearchParams): FilterState {
+  const ano = searchParams.get('ano') ? Number(searchParams.get('ano')) : null;
+  const municipio = searchParams.get('municipio');
+  let cargo = searchParams.get('cargo');
+  let candidato = searchParams.get('candidato');
+
+  // Em eleição municipal sem cidade, cargo e candidato não se aplicam.
+  if (isMunicipalAno(ano) && !municipio) {
+    cargo = null;
+    candidato = null;
+  }
+
   return {
-    ano: searchParams.get('ano') ? Number(searchParams.get('ano')) : null,
+    ano,
     uf: searchParams.get('uf'),
-    municipio: searchParams.get('municipio'),
-    cargo: searchParams.get('cargo'),
-    candidato: searchParams.get('candidato'),
+    municipio,
+    cargo,
+    candidato,
   };
 }
 
@@ -346,6 +456,19 @@ export function GlobalFilters() {
 
       if (key === 'municipio') {
         if (value === prev.municipio) return prev;
+
+        const isMunicipal = isMunicipalAno(prev.ano);
+
+        // Em eleição municipal, limpar a cidade também limpa cargo e candidato,
+        // pois dependem do município.
+        if (isMunicipal && !value) {
+          return {
+            ...prev,
+            municipio: null,
+            cargo: null,
+            candidato: null,
+          };
+        }
 
         // Trocar a cidade (eleição geral ou municipal) não reinicia cargo e
         // candidato — mantém os filtros já escolhidos.
@@ -473,7 +596,7 @@ export function GlobalFilters() {
     }
   }, [draft.ano, draft.uf, draft.cargo, draft.municipio]);
 
-  const isMunicipal = draft.ano ? draft.ano % 4 === 0 && draft.ano >= 2020 : false;
+  const isMunicipal = isMunicipalAno(draft.ano);
 
   const hasPendingChanges =
     draft.ano !== applied.ano ||
@@ -484,10 +607,38 @@ export function GlobalFilters() {
 
   const canApply = Boolean(draft.ano && draft.uf && hasPendingChanges);
 
+  const hasAppliedFilters = Boolean(
+    applied.ano || applied.uf || applied.municipio || applied.cargo || applied.candidato,
+  );
+  const hasDraftFilters = Boolean(
+    draft.ano || draft.uf || draft.municipio || draft.cargo || draft.candidato,
+  );
+  const hasActiveFilters = hasAppliedFilters || hasDraftFilters;
+
+  const clearAllFilters = () => {
+    setDraft({
+      ano: null,
+      uf: null,
+      municipio: null,
+      cargo: null,
+      candidato: null,
+    });
+
+    if (!hasAppliedFilters) return;
+
+    const params = new URLSearchParams();
+    const tab = searchParams.get('tab');
+    if (tab) params.set('tab', tab);
+
+    startNavigation(() => {
+      router.push(params.toString() ? `${pathname}?${params.toString()}` : pathname);
+    });
+  };
+
   return (
     <div className="relative z-20 mb-5 flex flex-col gap-2 print:hidden">
-      <div className="glass-panel relative z-30 flex flex-wrap items-end gap-4 rounded-xl p-4">
-      <div className="flex flex-col">
+      <div className="glass-panel relative z-30 flex flex-nowrap items-end gap-3 overflow-x-auto rounded-xl p-4 [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden">
+      <div className="flex shrink-0 flex-col">
         <label className="text-sm font-medium mb-1">Eleição/Ano</label>
         <select
           className="rounded-md border bg-white p-2 text-sm"
@@ -503,7 +654,7 @@ export function GlobalFilters() {
         </select>
       </div>
 
-      <div className="flex flex-col">
+      <div className="flex shrink-0 flex-col">
         <label className="text-sm font-medium mb-1">UF</label>
         <select
           className="min-w-[80px] rounded-md border bg-white p-2 text-sm"
@@ -520,9 +671,9 @@ export function GlobalFilters() {
         </select>
       </div>
 
-      <div className="flex flex-col">
+      <div className="flex shrink-0 flex-col">
         <label className="text-sm font-medium mb-1">
-          {isMunicipal ? 'Município*' : 'Cidade (opcional)'}
+          {isMunicipal ? 'Município*' : 'Município (opcional)'}
         </label>
         <SearchableSelect
           options={municipios}
@@ -532,14 +683,15 @@ export function GlobalFilters() {
           placeholder={isMunicipal ? '— Selecione' : '— (eleição geral)'}
           getOptionValue={(m) => m.cd}
           getOptionLabel={(m) => m.nm}
-          clearOnFocus
+          allowClear
+          clearAriaLabel="Limpar município"
         />
       </div>
 
-      <div className="flex flex-col">
+      <div className="flex shrink-0 flex-col">
         <label className="text-sm font-medium mb-1">Cargo</label>
         <select
-          className="max-w-[200px] rounded-md border bg-white p-2 text-sm"
+          className="w-[180px] rounded-md border bg-white p-2 text-sm"
           value={draft.cargo || ''}
           onChange={(e) => updateDraft('cargo', e.target.value || null)}
           disabled={!draft.uf || (isMunicipal && !draft.municipio)}
@@ -553,7 +705,7 @@ export function GlobalFilters() {
         </select>
       </div>
 
-      <div className="flex flex-col">
+      <div className="flex shrink-0 flex-col">
         <label className="text-sm font-medium mb-1">Candidato</label>
         <CandidatoAutocomplete
           candidatos={candidatos}
@@ -563,14 +715,28 @@ export function GlobalFilters() {
         />
       </div>
 
-      <Button
-        variant="outline"
-        onClick={applyFilters}
-        disabled={!canApply}
-        className="glass-action-btn h-[38px] rounded-lg px-6 font-semibold text-blue-600 hover:text-blue-800 active:translate-y-0"
-      >
-        Filtrar
-      </Button>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={applyFilters}
+          disabled={!canApply}
+          className="glass-action-btn h-[38px] rounded-lg px-6 font-semibold text-blue-600 hover:text-blue-800 active:translate-y-0"
+        >
+          Filtrar
+        </Button>
+        {hasActiveFilters && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={clearAllFilters}
+            aria-label="Limpar filtros"
+            title="Limpar filtros"
+            className="glass-action-btn h-[38px] w-[38px] rounded-lg p-0 text-slate-500 hover:text-slate-800 active:translate-y-0"
+          >
+            <X className="h-4 w-4" strokeWidth={2.25} />
+          </Button>
+        )}
+      </div>
       </div>
 
       {queryHistory.length > 0 && (
