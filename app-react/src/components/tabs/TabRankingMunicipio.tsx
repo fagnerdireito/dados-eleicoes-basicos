@@ -1,5 +1,7 @@
 import { listarCargos } from '@/app/actions';
 import { rankingMunicipio } from '@/app/actions-tab6';
+import { resolverCapital } from '@/lib/capitais';
+import { Info } from 'lucide-react';
 
 function fmtInt(val: number) {
   return new Intl.NumberFormat('pt-BR').format(val);
@@ -36,23 +38,47 @@ function BarRow({ nm, partido, votos, pct, index, isHighlight }: { nm: string, p
 export async function TabRankingMunicipio({ searchParams }: { searchParams: { [key: string]: string | undefined } }) {
   const { ano, uf, municipio, cargo, candidato } = searchParams;
 
-  if (!ano || !uf || !cargo || !municipio) {
+  if (!ano || !uf || !cargo) {
     return <div className="text-gray-500 p-4">Selecione Ano, UF, Município e Cargo nos filtros acima.</div>;
   }
 
   const anoAtual = parseInt(ano, 10);
   const anoAnterior = anoAtual - 4;
 
+  // Eleição geral sem cidade: usa a capital da UF como fallback.
+  let municipioEfetivo = municipio;
+  let usandoCapital = false;
+  let capitalNome = '';
+  if (!municipioEfetivo) {
+    const capital = await resolverCapital(anoAtual, uf);
+    if (!capital) {
+      return <div className="text-gray-500 p-4">Selecione Ano, UF, Município e Cargo nos filtros acima.</div>;
+    }
+    municipioEfetivo = capital.cd;
+    capitalNome = capital.nm;
+    usandoCapital = true;
+  }
+
   const [dfAtual, dfAnterior, cargos] = await Promise.all([
-    rankingMunicipio(anoAtual, uf, municipio, cargo),
-    rankingMunicipio(anoAnterior, uf, municipio, cargo),
-    listarCargos(anoAtual, uf, municipio),
+    rankingMunicipio(anoAtual, uf, municipioEfetivo, cargo),
+    rankingMunicipio(anoAnterior, uf, municipioEfetivo, cargo),
+    listarCargos(anoAtual, uf, municipioEfetivo),
   ]);
 
   const cargoLabel = cargos.find((c) => String(c.cd) === cargo)?.ds || cargo;
 
   return (
     <div className="flex flex-col gap-6">
+      {usandoCapital && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
+          <p>
+            Eleição geral sem cidade selecionada — exibindo a capital{' '}
+            <strong>{capitalNome}</strong> por padrão. Selecione uma cidade nos filtros para ver outro município.
+          </p>
+        </div>
+      )}
+
       <div>
         <h2 className="text-2xl font-bold text-[#0b2545]">Ranking geral no município</h2>
         <p className="text-gray-500">Top 10 candidatos mais votados · {cargoLabel}</p>

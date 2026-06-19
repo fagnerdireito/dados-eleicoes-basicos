@@ -1,7 +1,8 @@
 import { locaisDoMunicipio, nomeLocal, topCandidatosNoLocal } from '@/app/actions-tab8';
 import { listarCargos, listarMunicipios } from '@/app/actions';
+import { resolverCapital } from '@/lib/capitais';
 import { normalizeLocalName } from '@/lib/utils';
-import { MapPin } from 'lucide-react';
+import { Info, MapPin } from 'lucide-react';
 import { LocalVotacaoPicker } from './LocalVotacaoPicker';
 
 function fmtInt(val: number) {
@@ -39,22 +40,46 @@ function BarRow({ nm, partido, votos, pct, index, isHighlight }: { nm: string, p
 export async function TabCardLocal({ searchParams }: { searchParams: { [key: string]: string | undefined } }) {
   const { ano, uf, municipio, cargo, candidato, local } = searchParams;
 
-  if (!ano || !uf || !municipio || !cargo) {
+  if (!ano || !uf || !cargo) {
     return <div className="soft-subtitle p-2">Selecione Ano, UF, Município e Cargo nos filtros acima.</div>;
   }
 
   const anoNum = parseInt(ano, 10);
+
+  // Eleição geral sem cidade: usa a capital da UF como fallback.
+  let municipioEfetivo = municipio;
+  let usandoCapital = false;
+  if (!municipioEfetivo) {
+    const capital = await resolverCapital(anoNum, uf);
+    if (!capital) {
+      return <div className="soft-subtitle p-2">Selecione Ano, UF, Município e Cargo nos filtros acima.</div>;
+    }
+    municipioEfetivo = capital.cd;
+    usandoCapital = true;
+  }
+
   const [locais, cargos, municipios] = await Promise.all([
-    locaisDoMunicipio(anoNum, uf, municipio, cargo),
-    listarCargos(anoNum, uf, municipio),
+    locaisDoMunicipio(anoNum, uf, municipioEfetivo, cargo),
+    listarCargos(anoNum, uf, municipioEfetivo),
     listarMunicipios(anoNum, uf),
   ]);
   const cargoLabel = cargos.find((c) => String(c.cd) === cargo)?.ds ?? cargo;
-  const municipioNome = municipios.find((m) => String(m.cd) === municipio)?.nm ?? municipio;
+  const municipioNome = municipios.find((m) => String(m.cd) === municipioEfetivo)?.nm ?? municipioEfetivo;
+
+  const avisoCapital = usandoCapital ? (
+    <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
+      <Info className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
+      <p>
+        Eleição geral sem cidade selecionada — exibindo a capital{' '}
+        <strong>{municipioNome}</strong> por padrão. Selecione uma cidade nos filtros para ver outro município.
+      </p>
+    </div>
+  ) : null;
 
   if (locais.length === 0) {
     return (
       <div className="flex flex-col gap-8">
+        {avisoCapital}
         <header>
           <h2 className="soft-title">Votos por local de votação</h2>
           <p className="soft-subtitle">Top 10 candidatos no local · {municipioNome}</p>
@@ -66,7 +91,7 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
 
   // Build the list of local options with names
   const locaisComNome = await Promise.all(locais.map(async l => {
-    const nome = await nomeLocal(uf, municipio, l.nr_local);
+    const nome = await nomeLocal(uf, municipioEfetivo, l.nr_local);
     return { ...l, nome: nome || `Local ${l.nr_local}` };
   }));
 
@@ -76,12 +101,13 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
         ?? locaisComNome.find((l) => l.nr_local === local)
       : undefined) ?? locaisComNome[0];
 
-  const d = await topCandidatosNoLocal(anoNum, uf, municipio, cargo, currentLocalObj.nr_local);
+  const d = await topCandidatosNoLocal(anoNum, uf, municipioEfetivo, cargo, currentLocalObj.nr_local);
 
   const foco = d.ranking.find(r => r.nr === candidato);
 
   return (
     <div className="flex flex-col gap-8">
+      {avisoCapital}
       <header>
         <h2 className="soft-title">Votos por local de votação</h2>
         <p className="soft-subtitle">Top 10 candidatos no local · {municipioNome}</p>

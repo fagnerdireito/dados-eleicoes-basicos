@@ -2,6 +2,8 @@ import { votosPorBairro, votosPorLocalCandidato } from '@/app/actions-tab10';
 import { votosCandidatoPorMunicipio } from '@/app/actions-tab2';
 import { checkTableExists } from '@/app/actions-tab3';
 import { listarCandidatos, listarMunicipios } from '@/app/actions';
+import { resolverCapital } from '@/lib/capitais';
+import { Info } from 'lucide-react';
 
 function fmtInt(val: number) {
   return new Intl.NumberFormat('pt-BR').format(val);
@@ -75,16 +77,27 @@ export async function TabVotosBairro({ searchParams }: { searchParams: { [key: s
 
   const anoNum = parseInt(ano, 10);
 
+  // Eleição geral sem cidade: usa a capital da UF como fallback.
+  let municipioEfetivo = municipio;
+  let usandoCapital = false;
+  if (!municipioEfetivo) {
+    const capital = await resolverCapital(anoNum, uf);
+    if (capital) {
+      municipioEfetivo = capital.cd;
+      usandoCapital = true;
+    }
+  }
+
   const [dfMun, candidatos, municipios] = await Promise.all([
-    votosCandidatoPorMunicipio(anoNum, uf, cargo, candidato, municipio),
-    listarCandidatos(anoNum, uf, cargo, municipio || undefined),
+    votosCandidatoPorMunicipio(anoNum, uf, cargo, candidato, municipioEfetivo),
+    listarCandidatos(anoNum, uf, cargo, municipioEfetivo || undefined),
     listarMunicipios(anoNum, uf),
   ]);
 
   const c = candidatos.find((item) => String(item.nr) === candidato);
   const candidatoLabel = c ? `${c.nm}${c.sg_partido ? ` (${c.sg_partido})` : ''}` : candidato;
-  const municipioNome = municipio
-    ? (municipios.find((m) => String(m.cd) === municipio)?.nm ?? municipio)
+  const municipioNome = municipioEfetivo
+    ? (municipios.find((m) => String(m.cd) === municipioEfetivo)?.nm ?? municipioEfetivo)
     : null;
 
   const totalMun = dfMun.reduce((acc, curr) => acc + curr.votos, 0);
@@ -92,10 +105,10 @@ export async function TabVotosBairro({ searchParams }: { searchParams: { [key: s
   let dfBairro: Awaited<ReturnType<typeof votosPorBairro>> = [];
   let dfLocal: Awaited<ReturnType<typeof votosPorLocalCandidato>> = [];
 
-  if (municipio) {
+  if (municipioEfetivo) {
     [dfBairro, dfLocal] = await Promise.all([
-      votosPorBairro(anoNum, uf, municipio, cargo, candidato),
-      votosPorLocalCandidato(anoNum, uf, municipio, cargo, candidato),
+      votosPorBairro(anoNum, uf, municipioEfetivo, cargo, candidato),
+      votosPorLocalCandidato(anoNum, uf, municipioEfetivo, cargo, candidato),
     ]);
   }
 
@@ -112,11 +125,19 @@ export async function TabVotosBairro({ searchParams }: { searchParams: { [key: s
         </p>
       </header>
 
-      {!municipio && (
+      {usandoCapital ? (
+        <div className="mx-1 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden sm:mx-0">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
+          <p>
+            Eleição geral sem cidade selecionada — exibindo a capital{' '}
+            <strong>{municipioNome}</strong> por padrão. Selecione uma cidade nos filtros para ver outro município.
+          </p>
+        </div>
+      ) : !municipioEfetivo ? (
         <div className="soft-alert mx-1 sm:mx-0">
           Selecione um município nos filtros para ver o detalhamento por bairro e local.
         </div>
-      )}
+      ) : null}
 
       {dfMun.length > 0 && (
         <section>
@@ -137,7 +158,7 @@ export async function TabVotosBairro({ searchParams }: { searchParams: { [key: s
         </section>
       )}
 
-      {municipio && (
+      {municipioEfetivo && (
         <>
           <section>
             {dfBairro.length === 0 ? (

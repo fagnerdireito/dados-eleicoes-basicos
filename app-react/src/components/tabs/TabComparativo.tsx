@@ -1,7 +1,9 @@
 import { comparativoVotosTerritorio } from '@/app/actions-tab9';
 import { listarCandidatos } from '@/app/actions';
 import { checkTableExists } from '@/app/actions-tab3';
+import { resolverCapital } from '@/lib/capitais';
 import { ComparativoCandidatoPicker } from '@/components/tabs/ComparativoCandidatoPicker';
+import { Info } from 'lucide-react';
 import Link from 'next/link';
 
 function fmtInt(val: number) {
@@ -17,11 +19,26 @@ const CAND_COLORS = ["#1f6feb", "#ef4444", "#22c55e", "#f59e0b"];
 export async function TabComparativo({ searchParams }: { searchParams: { [key: string]: string | undefined } }) {
   const { ano, uf, municipio, cargo, candidato, dim, cands } = searchParams;
 
-  if (!ano || !uf || !municipio || !cargo) {
+  if (!ano || !uf || !cargo) {
     return <div className="text-gray-500 p-4">Selecione Ano, UF, Município e Cargo nos filtros acima.</div>;
   }
 
   const anoNum = parseInt(ano, 10);
+
+  // Eleição geral sem cidade: usa a capital da UF como fallback.
+  let municipioEfetivo = municipio;
+  let usandoCapital = false;
+  let capitalNome = '';
+  if (!municipioEfetivo) {
+    const capital = await resolverCapital(anoNum, uf);
+    if (!capital) {
+      return <div className="text-gray-500 p-4">Selecione Ano, UF, Município e Cargo nos filtros acima.</div>;
+    }
+    municipioEfetivo = capital.cd;
+    capitalNome = capital.nm;
+    usandoCapital = true;
+  }
+
   const dimensao = dim || 'zona';
   
   // Parse selected candidates
@@ -33,7 +50,7 @@ export async function TabComparativo({ searchParams }: { searchParams: { [key: s
   if (selectedNrs.length === 0 && candidato) selectedNrs = [candidato];
   if (selectedNrs.length > 4) selectedNrs = selectedNrs.slice(0, 4);
 
-  const todosCandidatos = await listarCandidatos(anoNum, uf, cargo, municipio, 500);
+  const todosCandidatos = await listarCandidatos(anoNum, uf, cargo, municipioEfetivo, 500);
   const hasLocalVotacao = await checkTableExists('local_votacao');
 
   const dimLabels = {
@@ -50,7 +67,7 @@ export async function TabComparativo({ searchParams }: { searchParams: { [key: s
     return <div className="bg-blue-50 text-blue-800 p-4 rounded">A dimensão '{dimLabels[dimensao as keyof typeof dimLabels]}' requer a tabela local_votacao.</div>;
   }
 
-  const rawData = await comparativoVotosTerritorio(anoNum, uf, municipio, cargo, selectedNrs, dimensao);
+  const rawData = await comparativoVotosTerritorio(anoNum, uf, municipioEfetivo, cargo, selectedNrs, dimensao);
 
   // Pivot data
   const rows = [];
@@ -91,6 +108,16 @@ export async function TabComparativo({ searchParams }: { searchParams: { [key: s
 
   return (
     <div className="flex flex-col gap-6">
+      {usandoCapital && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
+          <p>
+            Eleição geral sem cidade selecionada — exibindo a capital{' '}
+            <strong>{capitalNome}</strong> por padrão. Selecione uma cidade nos filtros para ver outro município.
+          </p>
+        </div>
+      )}
+
       <div>
         <h2 className="text-2xl font-bold text-[#0b2545]">Comparativo de candidatos no município</h2>
         <p className="text-gray-500">Compara até 4 candidatos nas divisões do município</p>

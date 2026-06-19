@@ -1,8 +1,9 @@
 import { votosCandidatoPorLocal } from '@/app/actions-tab5';
 import { votosCandidatoPorMunicipio } from '@/app/actions-tab2';
 import { listarCandidatos, listarMunicipios } from '@/app/actions';
+import { resolverCapital } from '@/lib/capitais';
 import { MapMunicipioDynamicWrapper } from './charts/MapMunicipioDynamic';
-import { MapPin, Vote } from 'lucide-react';
+import { Info, MapPin, Vote } from 'lucide-react';
 
 function fmtInt(val: number) {
   return new Intl.NumberFormat('pt-BR').format(val);
@@ -11,23 +12,35 @@ function fmtInt(val: number) {
 export async function TabVotosMunicipio({ searchParams }: { searchParams: { [key: string]: string | undefined } }) {
   const { ano, uf, municipio, cargo, candidato } = searchParams;
 
-  if (!ano || !uf || !cargo || !candidato || !municipio) {
+  if (!ano || !uf || !cargo || !candidato) {
     return <div className="text-gray-500 p-4">Selecione Ano, UF, Município, Cargo e Candidato nos filtros acima.</div>;
   }
 
   const anoNum = parseInt(ano, 10);
 
-  const municipios = await listarMunicipios(anoNum, uf);
-  const municipioNome = municipios.find((m) => String(m.cd) === municipio)?.nm ?? municipio;
+  // Eleição geral sem cidade: usa a capital da UF como fallback.
+  let municipioEfetivo = municipio;
+  let usandoCapital = false;
+  if (!municipioEfetivo) {
+    const capital = await resolverCapital(anoNum, uf);
+    if (!capital) {
+      return <div className="text-gray-500 p-4">Selecione Ano, UF, Município, Cargo e Candidato nos filtros acima.</div>;
+    }
+    municipioEfetivo = capital.cd;
+    usandoCapital = true;
+  }
 
-  const candidatos = await listarCandidatos(anoNum, uf, cargo, municipio);
+  const municipios = await listarMunicipios(anoNum, uf);
+  const municipioNome = municipios.find((m) => String(m.cd) === municipioEfetivo)?.nm ?? municipioEfetivo;
+
+  const candidatos = await listarCandidatos(anoNum, uf, cargo, municipioEfetivo);
   const c = candidatos.find((item) => String(item.nr) === candidato);
   const candidatoLabel = c ? `${c.nm}${c.sg_partido ? ` (${c.sg_partido})` : ''}` : candidato;
 
-  const munVotos = await votosCandidatoPorMunicipio(anoNum, uf, cargo, candidato, municipio);
+  const munVotos = await votosCandidatoPorMunicipio(anoNum, uf, cargo, candidato, municipioEfetivo);
   const cdIbge = munVotos[0]?.cd_ibge?.toString();
 
-  const data = await votosCandidatoPorLocal(anoNum, uf, municipio, cargo, candidato);
+  const data = await votosCandidatoPorLocal(anoNum, uf, municipioEfetivo, cargo, candidato);
 
   if (!data) {
     return <div className="rounded-lg bg-blue-50 p-4 text-blue-800">Tabela `local_votacao` não encontrada.</div>;
@@ -41,6 +54,16 @@ export async function TabVotosMunicipio({ searchParams }: { searchParams: { [key
 
   return (
     <div className="flex flex-col gap-8">
+      {usandoCapital && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
+          <p>
+            Eleição geral sem cidade selecionada — exibindo a capital{' '}
+            <strong>{municipioNome}</strong> por padrão. Selecione uma cidade nos filtros para ver outro município.
+          </p>
+        </div>
+      )}
+
       <div>
         <h2 className="flex flex-wrap items-center gap-3 text-2xl font-bold text-[#0b2545]">
           Onde estão os votos no município
