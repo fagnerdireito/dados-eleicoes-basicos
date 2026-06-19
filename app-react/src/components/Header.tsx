@@ -41,7 +41,7 @@ export function Header() {
           <div className="h-10 w-1 shrink-0 bg-blue-600 sm:h-12 chart-print-bg" aria-hidden="true" />
           <div className="min-w-0">
             <h1 className="text-lg font-bold leading-tight text-[#0b1b3f] sm:text-2xl">
-              Dados Eleitorais
+              Painel Eleitoral
             </h1>
             <p className="text-xs text-gray-500 sm:text-sm">
               Resultados consolidados a partir do boletim de urna do TSE.
