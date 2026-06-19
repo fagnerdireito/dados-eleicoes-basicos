@@ -1,5 +1,7 @@
 import { locaisDoMunicipio, nomeLocal, topCandidatosNoLocal } from '@/app/actions-tab8';
+import { listarCargos, listarMunicipios } from '@/app/actions';
 import { normalizeLocalName } from '@/lib/utils';
+import { MapPin } from 'lucide-react';
 import { LocalVotacaoPicker } from './LocalVotacaoPicker';
 
 function fmtInt(val: number) {
@@ -27,8 +29,8 @@ function BarRow({ nm, partido, votos, pct, index, isHighlight }: { nm: string, p
           <span className="text-gray-500 text-xs w-12 text-right">{fmtPct(pct)}</span>
         </div>
       </div>
-      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden mt-1 flex">
-        <div style={{ width, backgroundColor: color }} className="h-full rounded-full" />
+      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden mt-1 flex chart-print-bg">
+        <div style={{ width, backgroundColor: color }} className="h-full rounded-full chart-print-bg" />
       </div>
     </div>
   );
@@ -38,14 +40,28 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
   const { ano, uf, municipio, cargo, candidato, local } = searchParams;
 
   if (!ano || !uf || !municipio || !cargo) {
-    return <div className="text-gray-500 p-4">Selecione Ano, UF, Município e Cargo nos filtros acima.</div>;
+    return <div className="soft-subtitle p-2">Selecione Ano, UF, Município e Cargo nos filtros acima.</div>;
   }
 
   const anoNum = parseInt(ano, 10);
-  const locais = await locaisDoMunicipio(anoNum, uf, municipio, cargo);
+  const [locais, cargos, municipios] = await Promise.all([
+    locaisDoMunicipio(anoNum, uf, municipio, cargo),
+    listarCargos(anoNum, uf, municipio),
+    listarMunicipios(anoNum, uf),
+  ]);
+  const cargoLabel = cargos.find((c) => String(c.cd) === cargo)?.ds ?? cargo;
+  const municipioNome = municipios.find((m) => String(m.cd) === municipio)?.nm ?? municipio;
 
   if (locais.length === 0) {
-    return <div className="bg-blue-50 text-blue-800 p-4 rounded">Sem locais para o filtro atual.</div>;
+    return (
+      <div className="flex flex-col gap-8">
+        <header>
+          <h2 className="soft-title">Votos por local de votação</h2>
+          <p className="soft-subtitle">Top 10 candidatos no local · {municipioNome}</p>
+        </header>
+        <div className="soft-alert">Sem locais para o filtro atual.</div>
+      </div>
+    );
   }
 
   // Build the list of local options with names
@@ -65,9 +81,14 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
   const foco = d.ranking.find(r => r.nr === candidato);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row gap-6 items-start">
-        <div className="w-full md:w-1/3 flex flex-col">
+    <div className="flex flex-col gap-8">
+      <header>
+        <h2 className="soft-title">Votos por local de votação</h2>
+        <p className="soft-subtitle">Top 10 candidatos no local · {municipioNome}</p>
+      </header>
+
+      <div className="flex flex-col items-start gap-6 md:flex-row">
+        <div className="flex w-full flex-col md:w-1/3 print:hidden">
           <label className="mb-2 text-sm font-medium text-gray-700">Selecione o local de votação</label>
           <LocalVotacaoPicker
             locais={locaisComNome}
@@ -76,16 +97,19 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
           />
         </div>
 
-        <div className="w-full md:w-2/3 flex flex-col gap-6">
+        <div className="tab-card-local-print-block flex w-full flex-col gap-6 md:w-2/3 print:w-full">
           <div>
-            <h2 className="text-2xl font-bold text-[#0b2545]">{currentLocalObj.nome}</h2>
-            <p className="text-gray-500">Top 10 no local · Cargo {cargo}</p>
-            <p className="text-sm text-gray-400 mt-2">
+            <span className="recorte-pill chart-print-bg mb-2 inline-flex w-fit max-w-full items-center gap-2 rounded-full bg-indigo-600/70 px-4 py-1.5 text-base font-semibold text-white">
+              <span className="truncate">{currentLocalObj.nome}</span>
+              <MapPin className="h-4 w-4 shrink-0" strokeWidth={2.25} />
+            </span>
+            <p className="soft-subtitle">Top 10 no local · {cargoLabel}</p>
+            <p className="soft-footnote mt-1">
               {fmtInt(d.validos)} votos válidos · {fmtInt(d.brancos)} em branco · {fmtInt(d.nulos)} nulos
             </p>
           </div>
 
-          <div className="bg-white border rounded-lg p-5 shadow-sm">
+          <div className="chart-print-bg rounded-lg border bg-white p-5 shadow-sm print:shadow-none">
             {d.ranking.length === 0 ? (
               <p className="text-gray-500 text-sm">Sem ranking para esse local.</p>
             ) : (
@@ -106,7 +130,7 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
           </div>
 
           {foco && (
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-[#0b2545]">
+            <div className="chart-print-bg rounded-lg border border-blue-100 bg-blue-50 p-4 text-[#0b2545]">
               Desempenho de <b>{foco.nm}</b>: {fmtInt(foco.votos)} votos ({foco.pct.toFixed(2)}%) no local.
             </div>
           )}

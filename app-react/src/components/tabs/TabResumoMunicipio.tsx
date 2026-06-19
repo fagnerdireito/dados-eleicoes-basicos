@@ -1,4 +1,5 @@
 import { resumoCandidatoMunicipio, votosCandidatoPorMunicipio } from '@/app/actions-tab2';
+import { listarCargos } from '@/app/actions';
 import { Building2, MapPin, Trophy, Vote } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -55,7 +56,12 @@ export async function TabResumoMunicipio({ searchParams }: { searchParams: { [ke
     return <div className="soft-subtitle p-2">Selecione Ano, UF, Cargo e Candidato nos filtros acima.</div>;
   }
 
-  const municipios = await votosCandidatoPorMunicipio(parseInt(ano, 10), uf, cargo, candidato, municipio);
+  const anoNum = parseInt(ano, 10);
+  const [municipios, cargos] = await Promise.all([
+    votosCandidatoPorMunicipio(anoNum, uf, cargo, candidato, municipio),
+    listarCargos(anoNum, uf, municipio || undefined),
+  ]);
+  const cargoLabel = cargos.find((c) => String(c.cd) === cargo)?.ds ?? cargo;
   const municipiosFiltrados = municipios.filter(m => m.votos > 0);
 
   if (municipiosFiltrados.length === 0) {
@@ -70,11 +76,11 @@ export async function TabResumoMunicipio({ searchParams }: { searchParams: { [ke
     <div className="flex flex-col gap-10">
       <header>
         <h2 className="soft-title">Resumo por município</h2>
-        <p className="soft-subtitle">Municípios com votação na UF · {ano} · Cargo {cargo}</p>
+        <p className="soft-subtitle">Municípios com votação na UF · {ano} · {cargoLabel}</p>
       </header>
 
       {await Promise.all(municipiosFiltrados.map(async (row, i) => {
-        const d = await resumoCandidatoMunicipio(parseInt(ano, 10), uf, row.cd, cargo, candidato);
+        const d = await resumoCandidatoMunicipio(anoNum, uf, row.cd, cargo, candidato);
 
         return (
           <section key={row.cd} className={`flex flex-col gap-8 print:break-inside-avoid ${i > 0 ? 'pt-4' : ''}`}>
