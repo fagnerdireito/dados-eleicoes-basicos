@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['147.93.66.145'],
   // Habilita Cache Components (necessário para a diretiva "use cache").
   cacheComponents: true,
   cacheLife: {
