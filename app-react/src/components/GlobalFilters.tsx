@@ -24,6 +24,71 @@ type FilterState = {
   candidato: string | null;
 };
 
+type QueryHistoryEntry = {
+  label: string;
+  params: {
+    ano: string;
+    uf: string;
+    municipio?: string;
+    cargo?: string;
+    candidato?: string;
+    tab?: string;
+  };
+};
+
+const QUERY_HISTORY_KEY = 'dados-eleicoes-consultas';
+const MAX_QUERY_HISTORY = 5;
+
+function firstName(fullName: string) {
+  return fullName.trim().split(/\s+/)[0]?.toLowerCase() ?? fullName.toLowerCase();
+}
+
+function historyParamsKey(params: QueryHistoryEntry['params']) {
+  return [params.ano, params.uf, params.municipio ?? '', params.cargo ?? '', params.candidato ?? ''].join('|');
+}
+
+function loadQueryHistory(): QueryHistoryEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(QUERY_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as QueryHistoryEntry[];
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_QUERY_HISTORY) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveQueryHistory(entries: QueryHistoryEntry[]) {
+  localStorage.setItem(QUERY_HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_QUERY_HISTORY)));
+}
+
+function buildHistoryLabel(
+  draft: FilterState,
+  municipios: MunicipioOption[],
+  cargos: { cd: string; ds: string }[],
+  candidatos: CandidatoOption[],
+): string | null {
+  if (!draft.ano || !draft.uf) return null;
+
+  const parts: string[] = [String(draft.ano), draft.uf];
+
+  if (draft.municipio) {
+    const m = municipios.find((x) => x.cd === draft.municipio);
+    parts.push((m?.nm ?? draft.municipio).toLowerCase());
+  }
+  if (draft.cargo) {
+    const c = cargos.find((x) => String(x.cd) === draft.cargo);
+    parts.push((c?.ds ?? draft.cargo).toLowerCase());
+  }
+  if (draft.candidato) {
+    const cand = candidatos.find((x) => String(x.nr) === draft.candidato);
+    parts.push(cand ? firstName(cand.nm) : draft.candidato);
+  }
+
+  return parts.join(' · ');
+}
+
 function formatCandidatoLabel(c: { nm: string; sg_partido?: string }) {
   return c.sg_partido ? `${c.nm} (${c.sg_partido})` : c.nm;
 }
@@ -162,7 +227,7 @@ function SearchableSelect({
       {open && !disabled && filtered.length > 0 && (
         <ul
           role="listbox"
-          className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-white shadow-lg"
+          className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-white shadow-lg"
         >
           {filtered.map((option) => {
             const optionValue = getOptionValue(option);
@@ -239,6 +304,11 @@ export function GlobalFilters() {
   const [municipios, setMunicipios] = useState<MunicipioOption[]>([]);
   const [cargos, setCargos] = useState<any[]>([]);
   const [candidatos, setCandidatos] = useState<CandidatoOption[]>([]);
+  const [queryHistory, setQueryHistory] = useState<QueryHistoryEntry[]>([]);
+
+  useEffect(() => {
+    setQueryHistory(loadQueryHistory());
+  }, []);
 
   useEffect(() => {
     setDraft(filtersFromParams(searchParams));
@@ -306,6 +376,15 @@ export function GlobalFilters() {
     });
   };
 
+  const addToHistory = useCallback((entry: QueryHistoryEntry) => {
+    setQueryHistory((prev) => {
+      const key = historyParamsKey(entry.params);
+      const next = [entry, ...prev.filter((item) => historyParamsKey(item.params) !== key)];
+      saveQueryHistory(next);
+      return next;
+    });
+  }, []);
+
   const applyFilters = () => {
     const params = new URLSearchParams(searchParams.toString());
 
@@ -323,6 +402,32 @@ export function GlobalFilters() {
     setOrDelete('cargo', draft.cargo);
     setOrDelete('candidato', draft.candidato);
 
+    const label = buildHistoryLabel(draft, municipios, cargos, candidatos);
+    if (label && draft.ano && draft.uf) {
+      addToHistory({
+        label,
+        params: {
+          ano: String(draft.ano),
+          uf: draft.uf,
+          ...(draft.municipio ? { municipio: draft.municipio } : {}),
+          ...(draft.cargo ? { cargo: draft.cargo } : {}),
+          ...(draft.candidato ? { candidato: draft.candidato } : {}),
+          ...(searchParams.get('tab') ? { tab: searchParams.get('tab')! } : {}),
+        },
+      });
+    }
+
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const restoreQuery = (entry: QueryHistoryEntry) => {
+    const params = new URLSearchParams();
+    params.set('ano', entry.params.ano);
+    params.set('uf', entry.params.uf);
+    if (entry.params.municipio) params.set('municipio', entry.params.municipio);
+    if (entry.params.cargo) params.set('cargo', entry.params.cargo);
+    if (entry.params.candidato) params.set('candidato', entry.params.candidato);
+    if (entry.params.tab) params.set('tab', entry.params.tab);
     router.push(`${pathname}?${params.toString()}`);
   };
 
@@ -374,7 +479,8 @@ export function GlobalFilters() {
   const canApply = Boolean(draft.ano && draft.uf && hasPendingChanges);
 
   return (
-    <div className="glass-panel relative z-20 mb-6 flex flex-wrap items-end gap-4 rounded-xl p-4 print:hidden">
+    <div className="relative z-20 mb-5 flex flex-col gap-2 print:hidden">
+      <div className="glass-panel relative z-30 flex flex-wrap items-end gap-4 rounded-xl p-4">
       <div className="flex flex-col">
         <label className="text-sm font-medium mb-1">Eleição/Ano</label>
         <select
@@ -459,6 +565,25 @@ export function GlobalFilters() {
       >
         Filtrar
       </Button>
+      </div>
+
+      {queryHistory.length > 0 && (
+        <div className="relative z-10 overflow-x-auto px-1 mt-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max min-w-full flex-nowrap gap-2 pb-0.5">
+          {queryHistory.map((entry) => (
+            <button
+              key={historyParamsKey(entry.params)}
+              type="button"
+              onClick={() => restoreQuery(entry)}
+              title="Restaurar consulta"
+              className="inline-flex shrink-0 items-center rounded-full border border-indigo-200/80 bg-white/95 px-3 py-1 text-xs font-medium whitespace-nowrap text-indigo-900 shadow-md backdrop-blur-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+            >
+              {entry.label}
+            </button>
+          ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
