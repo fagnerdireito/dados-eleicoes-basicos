@@ -17,7 +17,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
   const currentTab = resolvedSearchParams.tab || '1';
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col print:w-full">
       <Suspense fallback={<div>Carregando filtros...</div>}>
         <GlobalFilters />
       </Suspense>
@@ -26,8 +26,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
         <TabsNavigation />
       </Suspense>
 
-      <div className="bg-white p-6 border rounded-b-lg rounded-tr-lg min-h-[400px] shadow-sm -mt-6">
-        {currentTab === '1' && <TabSumario searchParams={resolvedSearchParams} />}
+      <div className="glass-panel min-h-[400px] rounded-xl p-6 print:mt-0 print:w-full print:p-0 print:shadow-none print:rounded-none print:bg-white!">
+        {currentTab === '1' && (
+          <Suspense fallback={<div>Carregando sumário...</div>}>
+            <TabSumario searchParams={resolvedSearchParams} />
+          </Suspense>
+        )}
         {currentTab === '2' && (
           <Suspense fallback={<div>Carregando resumo do município...</div>}>
             <TabResumoMunicipio searchParams={resolvedSearchParams} />

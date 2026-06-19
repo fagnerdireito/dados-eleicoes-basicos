@@ -1,9 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { listarAnos, listarUfs, listarMunicipios, listarCargos, listarCandidatos } from '@/app/actions';
 import { Button } from '@/components/ui/button';
+
+type CandidatoOption = {
+  nr: string;
+  nm: string;
+  sg_partido?: string;
+};
 
 type FilterState = {
   ano: number | null;
@@ -12,6 +18,143 @@ type FilterState = {
   cargo: string | null;
   candidato: string | null;
 };
+
+function formatCandidatoLabel(c: { nm: string; sg_partido?: string }) {
+  return c.sg_partido ? `${c.nm} (${c.sg_partido})` : c.nm;
+}
+
+function CandidatoAutocomplete({
+  candidatos,
+  value,
+  onChange,
+  disabled,
+}: {
+  candidatos: CandidatoOption[];
+  value: string | null;
+  onChange: (nr: string | null) => void;
+  disabled?: boolean;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (document.activeElement === inputRef.current) return;
+
+    if (value) {
+      const selected = candidatos.find((c) => String(c.nr) === value);
+      setQuery(selected ? formatCandidatoLabel(selected) : '');
+    } else {
+      setQuery('');
+    }
+  }, [value, candidatos]);
+
+  const commitQuery = useCallback(() => {
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      onChange(null);
+      setQuery('');
+      return;
+    }
+
+    const exact = candidatos.find(
+      (c) => formatCandidatoLabel(c).toLowerCase() === trimmed.toLowerCase(),
+    );
+
+    if (exact) {
+      onChange(String(exact.nr));
+      setQuery(formatCandidatoLabel(exact));
+      return;
+    }
+
+    if (value) {
+      const selected = candidatos.find((c) => String(c.nr) === value);
+      setQuery(selected ? formatCandidatoLabel(selected) : '');
+      return;
+    }
+
+    setQuery('');
+  }, [query, value, candidatos, onChange]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        commitQuery();
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [commitQuery]);
+
+  const filtered = candidatos.filter((c) => {
+    if (!query.trim()) return true;
+    return formatCandidatoLabel(c).toLowerCase().includes(query.toLowerCase());
+  });
+
+  return (
+    <div ref={containerRef} className="relative w-full min-w-[320px] max-w-[420px]">
+      <input
+        ref={inputRef}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        className="w-full rounded border bg-white p-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+        placeholder="— Selecione"
+        value={query}
+        disabled={disabled}
+        autoComplete="off"
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={(e) => {
+          setOpen(true);
+          e.target.select();
+        }}
+        onBlur={() => {
+          commitQuery();
+          setOpen(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            commitQuery();
+            setOpen(false);
+            inputRef.current?.blur();
+          }
+        }}
+      />
+
+      {open && !disabled && filtered.length > 0 && (
+        <ul
+          role="listbox"
+          className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-white shadow-lg"
+        >
+          {filtered.map((c) => (
+            <li key={c.nr} role="option">
+              <button
+                type="button"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(String(c.nr));
+                  setQuery(formatCandidatoLabel(c));
+                  setOpen(false);
+                }}
+              >
+                {formatCandidatoLabel(c)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function filtersFromParams(searchParams: URLSearchParams): FilterState {
   return {
@@ -35,7 +178,7 @@ export function GlobalFilters() {
   const [ufs, setUfs] = useState<string[]>([]);
   const [municipios, setMunicipios] = useState<any[]>([]);
   const [cargos, setCargos] = useState<any[]>([]);
-  const [candidatos, setCandidatos] = useState<any[]>([]);
+  const [candidatos, setCandidatos] = useState<CandidatoOption[]>([]);
 
   useEffect(() => {
     setDraft(filtersFromParams(searchParams));
@@ -139,7 +282,7 @@ export function GlobalFilters() {
   const canApply = Boolean(draft.ano && draft.uf && hasPendingChanges);
 
   return (
-    <div className="flex flex-wrap gap-4 items-end mb-6 p-4 bg-slate-50 border rounded-lg">
+    <div className="glass-panel mb-6 flex flex-wrap items-end gap-4 rounded-xl p-4 print:hidden">
       <div className="flex flex-col">
         <label className="text-sm font-medium mb-1">Eleição/Ano</label>
         <select
@@ -211,22 +354,20 @@ export function GlobalFilters() {
 
       <div className="flex flex-col">
         <label className="text-sm font-medium mb-1">Candidato</label>
-        <select
-          className="border rounded p-2 text-sm bg-white max-w-[300px]"
-          value={draft.candidato || ''}
-          onChange={(e) => updateDraft('candidato', e.target.value || null)}
+        <CandidatoAutocomplete
+          candidatos={candidatos}
+          value={draft.candidato}
+          onChange={(nr) => updateDraft('candidato', nr)}
           disabled={!draft.cargo}
-        >
-          <option value="">— Selecione</option>
-          {candidatos.map((c) => (
-            <option key={c.nr} value={c.nr}>
-              {c.nr} - {c.nm} ({c.sg_partido})
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
-      <Button onClick={applyFilters} disabled={!canApply} className="h-[38px] px-6">
+      <Button
+        variant="outline"
+        onClick={applyFilters}
+        disabled={!canApply}
+        className="glass-action-btn h-[38px] rounded-lg px-6 font-semibold text-blue-600 hover:text-blue-800 active:translate-y-0"
+      >
         Filtrar
       </Button>
     </div>

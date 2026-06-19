@@ -5,7 +5,7 @@ import { Printer } from 'lucide-react';
 
 export function Header() {
   return (
-    <header className="mb-10 w-full print:mb-4 print:w-full">
+    <header className="mb-10 w-full print:mb-10 print:w-full mt-10 print:mt-0">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <Image
@@ -16,7 +16,7 @@ export function Header() {
             priority
             className="h-9 w-auto shrink-0 sm:h-10"
           />
-          <div className="h-10 w-1 shrink-0 bg-blue-600 sm:h-12" aria-hidden="true" />
+          <div className="h-10 w-1 shrink-0 bg-blue-600 sm:h-12 chart-print-bg" aria-hidden="true" />
           <div className="min-w-0">
             <h1 className="text-lg font-bold leading-tight text-[#0b1b3f] sm:text-2xl">
               Dados Eleitorais
@@ -36,6 +36,7 @@ export function Header() {
           Imprimir
         </button>
       </div>
+      <hr className="mt-7 mb-0 border-gray-200" />
     </header>
   );
 }

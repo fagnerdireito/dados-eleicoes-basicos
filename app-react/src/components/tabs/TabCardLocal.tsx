@@ -72,13 +72,13 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
               const isActive = l.nr_local === selectedLocal;
               
               return (
-                <Link 
+                <Link
                   key={l.nr_local}
                   href={`/?${params.toString()}`}
-                  className={`p-2 text-sm rounded-md transition-colors truncate ${isActive ? 'bg-[#0b2545] text-white' : 'hover:bg-gray-200 text-gray-700'}`}
+                  className={`block rounded-md p-2 text-sm transition-colors ${isActive ? 'bg-[#0b2545] text-white' : 'hover:bg-gray-200 text-gray-700'}`}
                   title={`${l.nome} (${l.nr_local})`}
                 >
-                  <div className="font-semibold">{l.nome}</div>
+                  <div className="truncate font-semibold">{l.nome}</div>
                   <div className={`text-xs ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>Local {l.nr_local}</div>
                 </Link>
               );

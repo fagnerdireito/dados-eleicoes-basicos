@@ -29,7 +29,8 @@ export function BarChartHorizontal({ data, height = 400 }: { data: any[], height
         <BarChart
           layout="vertical"
           data={plotData}
-          margin={{ top: 10, right: 30, left: 0, bottom: 10 }}
+          className=""
+          margin={{ top: 10, right: 30, left: -40, bottom: 10 }}
         >
           <XAxis type="number" hide />
           <YAxis 
@@ -38,7 +39,7 @@ export function BarChartHorizontal({ data, height = 400 }: { data: any[], height
             axisLine={false} 
             tickLine={false}
             width={150}
-            tick={{ fontSize: 11, fill: '#5b6b80' }}
+            tick={{ fontSize: 13, fill: '#000000' }}
           />
           <Tooltip content={<CustomTooltip />} cursor={{fill: 'transparent'}} />
           <Bar dataKey="pct" fill="#1f6feb" radius={[0, 4, 4, 0]}>

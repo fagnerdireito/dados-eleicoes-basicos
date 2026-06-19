@@ -29,15 +29,15 @@ export function TabsNavigation() {
   };
 
   return (
-    <div className="flex overflow-x-auto space-x-1 border-b border-gray-200 mb-6 bg-white p-2 rounded-t-lg shadow-sm">
+    <div className="glass-panel mb-6 flex flex-wrap gap-1 rounded-xl p-2 print:hidden">
       {TAB_LABELS.map(tab => (
         <button
           key={tab.id}
           onClick={() => setTab(tab.id)}
-          className={`whitespace-nowrap py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+          className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
             currentTab === tab.id
-              ? 'bg-[#0b2545] text-white'
-              : 'text-gray-600 hover:bg-gray-100'
+              ? 'bg-indigo-600/70 text-white shadow-sm'
+              : 'text-gray-600 hover:bg-white/70 hover:shadow-sm'
           }`}
         >
           {tab.label}
