@@ -1,5 +1,6 @@
 import { locaisDoMunicipio, nomeLocal, topCandidatosNoLocal } from '@/app/actions-tab8';
-import Link from 'next/link';
+import { normalizeLocalName } from '@/lib/utils';
+import { LocalVotacaoPicker } from './LocalVotacaoPicker';
 
 function fmtInt(val: number) {
   return new Intl.NumberFormat('pt-BR').format(val);
@@ -53,10 +54,13 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
     return { ...l, nome: nome || `Local ${l.nr_local}` };
   }));
 
-  const selectedLocal = local || locaisComNome[0].nr_local;
-  const currentLocalObj = locaisComNome.find(l => l.nr_local === selectedLocal) || locaisComNome[0];
+  const currentLocalObj =
+    (local
+      ? locaisComNome.find((l) => normalizeLocalName(l.nome) === normalizeLocalName(local))
+        ?? locaisComNome.find((l) => l.nr_local === local)
+      : undefined) ?? locaisComNome[0];
 
-  const d = await topCandidatosNoLocal(anoNum, uf, municipio, cargo, selectedLocal);
+  const d = await topCandidatosNoLocal(anoNum, uf, municipio, cargo, currentLocalObj.nr_local);
 
   const foco = d.ranking.find(r => r.nr === candidato);
 
@@ -64,26 +68,12 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
     <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row gap-6 items-start">
         <div className="w-full md:w-1/3 flex flex-col">
-          <label className="text-sm font-medium mb-2 text-gray-700">Selecione o local de votação</label>
-          <div className="flex flex-col gap-1 max-h-[600px] overflow-y-auto pr-2 border rounded-md p-2 bg-gray-50">
-            {locaisComNome.map(l => {
-              const params = new URLSearchParams(searchParams as any);
-              params.set('local', l.nr_local);
-              const isActive = l.nr_local === selectedLocal;
-              
-              return (
-                <Link
-                  key={l.nr_local}
-                  href={`/?${params.toString()}`}
-                  className={`block rounded-md p-2 text-sm transition-colors ${isActive ? 'bg-[#0b2545] text-white' : 'hover:bg-gray-200 text-gray-700'}`}
-                  title={`${l.nome} (${l.nr_local})`}
-                >
-                  <div className="truncate font-semibold">{l.nome}</div>
-                  <div className={`text-xs ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>Local {l.nr_local}</div>
-                </Link>
-              );
-            })}
-          </div>
+          <label className="mb-2 text-sm font-medium text-gray-700">Selecione o local de votação</label>
+          <LocalVotacaoPicker
+            locais={locaisComNome}
+            selectedNome={currentLocalObj.nome}
+            searchParams={searchParams}
+          />
         </div>
 
         <div className="w-full md:w-2/3 flex flex-col gap-6">

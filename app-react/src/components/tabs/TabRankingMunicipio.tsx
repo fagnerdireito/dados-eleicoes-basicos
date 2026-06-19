@@ -1,3 +1,4 @@
+import { listarCargos } from '@/app/actions';
 import { rankingMunicipio } from '@/app/actions-tab6';
 
 function fmtInt(val: number) {
@@ -42,16 +43,19 @@ export async function TabRankingMunicipio({ searchParams }: { searchParams: { [k
   const anoAtual = parseInt(ano, 10);
   const anoAnterior = anoAtual - 4;
 
-  const [dfAtual, dfAnterior] = await Promise.all([
+  const [dfAtual, dfAnterior, cargos] = await Promise.all([
     rankingMunicipio(anoAtual, uf, municipio, cargo),
-    rankingMunicipio(anoAnterior, uf, municipio, cargo)
+    rankingMunicipio(anoAnterior, uf, municipio, cargo),
+    listarCargos(anoAtual, uf, municipio),
   ]);
+
+  const cargoLabel = cargos.find((c) => String(c.cd) === cargo)?.ds || cargo;
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-2xl font-bold text-[#0b2545]">Ranking geral no município</h2>
-        <p className="text-gray-500">Top 10 candidatos mais votados · Cargo {cargo}</p>
+        <p className="text-gray-500">Top 10 candidatos mais votados · {cargoLabel}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

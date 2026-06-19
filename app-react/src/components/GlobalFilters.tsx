@@ -11,6 +11,11 @@ type CandidatoOption = {
   sg_partido?: string;
 };
 
+type MunicipioOption = {
+  cd: string;
+  nm: string;
+};
+
 type FilterState = {
   ano: number | null;
   uf: string | null;
@@ -23,16 +28,26 @@ function formatCandidatoLabel(c: { nm: string; sg_partido?: string }) {
   return c.sg_partido ? `${c.nm} (${c.sg_partido})` : c.nm;
 }
 
-function CandidatoAutocomplete({
-  candidatos,
+function SearchableSelect({
+  options,
   value,
   onChange,
   disabled,
+  placeholder = '— Selecione',
+  getOptionValue,
+  getOptionLabel,
+  className = 'w-full min-w-[200px] max-w-[280px]',
+  clearOnFocus = false,
 }: {
-  candidatos: CandidatoOption[];
+  options: { [key: string]: string }[];
   value: string | null;
-  onChange: (nr: string | null) => void;
+  onChange: (value: string | null) => void;
   disabled?: boolean;
+  placeholder?: string;
+  getOptionValue: (option: { [key: string]: string }) => string;
+  getOptionLabel: (option: { [key: string]: string }) => string;
+  className?: string;
+  clearOnFocus?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -43,40 +58,51 @@ function CandidatoAutocomplete({
     if (document.activeElement === inputRef.current) return;
 
     if (value) {
-      const selected = candidatos.find((c) => String(c.nr) === value);
-      setQuery(selected ? formatCandidatoLabel(selected) : '');
+      const selected = options.find((option) => getOptionValue(option) === value);
+      setQuery(selected ? getOptionLabel(selected) : '');
     } else {
       setQuery('');
     }
-  }, [value, candidatos]);
+  }, [value, options, getOptionValue, getOptionLabel]);
 
   const commitQuery = useCallback(() => {
     const trimmed = query.trim();
 
     if (!trimmed) {
-      onChange(null);
+      if (clearOnFocus && value) {
+        const selected = options.find((option) => getOptionValue(option) === value);
+        setQuery(selected ? getOptionLabel(selected) : '');
+        return;
+      }
+
+      if (value !== null) {
+        onChange(null);
+      }
       setQuery('');
       return;
     }
 
-    const exact = candidatos.find(
-      (c) => formatCandidatoLabel(c).toLowerCase() === trimmed.toLowerCase(),
+    const exact = options.find(
+      (option) => getOptionLabel(option).toLowerCase() === trimmed.toLowerCase(),
     );
 
     if (exact) {
-      onChange(String(exact.nr));
-      setQuery(formatCandidatoLabel(exact));
+      const nextValue = getOptionValue(exact);
+      if (nextValue !== value) {
+        onChange(nextValue);
+      }
+      setQuery(getOptionLabel(exact));
       return;
     }
 
     if (value) {
-      const selected = candidatos.find((c) => String(c.nr) === value);
-      setQuery(selected ? formatCandidatoLabel(selected) : '');
+      const selected = options.find((option) => getOptionValue(option) === value);
+      setQuery(selected ? getOptionLabel(selected) : '');
       return;
     }
 
     setQuery('');
-  }, [query, value, candidatos, onChange]);
+  }, [query, value, options, onChange, getOptionValue, getOptionLabel, clearOnFocus]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -90,13 +116,13 @@ function CandidatoAutocomplete({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [commitQuery]);
 
-  const filtered = candidatos.filter((c) => {
+  const filtered = options.filter((option) => {
     if (!query.trim()) return true;
-    return formatCandidatoLabel(c).toLowerCase().includes(query.toLowerCase());
+    return getOptionLabel(option).toLowerCase().includes(query.toLowerCase());
   });
 
   return (
-    <div ref={containerRef} className="relative w-full min-w-[320px] max-w-[420px]">
+    <div ref={containerRef} className={`relative ${className}`}>
       <input
         ref={inputRef}
         type="text"
@@ -104,7 +130,7 @@ function CandidatoAutocomplete({
         aria-expanded={open}
         aria-autocomplete="list"
         className="w-full rounded border bg-white p-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-        placeholder="— Selecione"
+        placeholder={placeholder}
         value={query}
         disabled={disabled}
         autoComplete="off"
@@ -112,9 +138,13 @@ function CandidatoAutocomplete({
           setQuery(e.target.value);
           setOpen(true);
         }}
-        onFocus={(e) => {
+        onFocus={() => {
           setOpen(true);
-          e.target.select();
+          if (clearOnFocus) {
+            setQuery('');
+          } else {
+            inputRef.current?.select();
+          }
         }}
         onBlur={() => {
           commitQuery();
@@ -134,25 +164,55 @@ function CandidatoAutocomplete({
           role="listbox"
           className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-white shadow-lg"
         >
-          {filtered.map((c) => (
-            <li key={c.nr} role="option">
-              <button
-                type="button"
-                className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onChange(String(c.nr));
-                  setQuery(formatCandidatoLabel(c));
-                  setOpen(false);
-                }}
-              >
-                {formatCandidatoLabel(c)}
-              </button>
-            </li>
-          ))}
+          {filtered.map((option) => {
+            const optionValue = getOptionValue(option);
+            return (
+              <li key={optionValue} role="option">
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    if (optionValue !== value) {
+                      onChange(optionValue);
+                    }
+                    setQuery(getOptionLabel(option));
+                    setOpen(false);
+                  }}
+                >
+                  {getOptionLabel(option)}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
+  );
+}
+
+function CandidatoAutocomplete({
+  candidatos,
+  value,
+  onChange,
+  disabled,
+}: {
+  candidatos: CandidatoOption[];
+  value: string | null;
+  onChange: (nr: string | null) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <SearchableSelect
+      options={candidatos}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      getOptionValue={(c) => String(c.nr)}
+      getOptionLabel={(c) => formatCandidatoLabel(c as CandidatoOption)}
+      className="w-full min-w-[320px] max-w-[420px]"
+      clearOnFocus
+    />
   );
 }
 
@@ -176,7 +236,7 @@ export function GlobalFilters() {
 
   const [anos, setAnos] = useState<number[]>([]);
   const [ufs, setUfs] = useState<string[]>([]);
-  const [municipios, setMunicipios] = useState<any[]>([]);
+  const [municipios, setMunicipios] = useState<MunicipioOption[]>([]);
   const [cargos, setCargos] = useState<any[]>([]);
   const [candidatos, setCandidatos] = useState<CandidatoOption[]>([]);
 
@@ -186,31 +246,63 @@ export function GlobalFilters() {
 
   const updateDraft = (key: keyof FilterState, value: string | null) => {
     setDraft((prev) => {
-      const next = { ...prev };
-
       if (key === 'ano') {
-        next.ano = value ? Number(value) : null;
-        next.uf = null;
-        next.municipio = null;
-        next.cargo = null;
-        next.candidato = null;
-      } else if (key === 'uf') {
-        next.uf = value;
-        next.municipio = null;
-        next.cargo = null;
-        next.candidato = null;
-      } else if (key === 'municipio') {
-        next.municipio = value;
-        next.cargo = null;
-        next.candidato = null;
-      } else if (key === 'cargo') {
-        next.cargo = value;
-        next.candidato = null;
-      } else if (key === 'candidato') {
-        next.candidato = value;
+        const nextAno = value ? Number(value) : null;
+        if (nextAno === prev.ano) return prev;
+
+        return {
+          ...prev,
+          ano: nextAno,
+          uf: null,
+          municipio: null,
+          cargo: null,
+          candidato: null,
+        };
       }
 
-      return next;
+      if (key === 'uf') {
+        if (value === prev.uf) return prev;
+
+        return {
+          ...prev,
+          uf: value,
+          municipio: null,
+          cargo: null,
+          candidato: null,
+        };
+      }
+
+      if (key === 'municipio') {
+        if (value === prev.municipio) return prev;
+
+        return {
+          ...prev,
+          municipio: value,
+          cargo: null,
+          candidato: null,
+        };
+      }
+
+      if (key === 'cargo') {
+        if (value === prev.cargo) return prev;
+
+        return {
+          ...prev,
+          cargo: value,
+          candidato: null,
+        };
+      }
+
+      if (key === 'candidato') {
+        if (value === prev.candidato) return prev;
+
+        return {
+          ...prev,
+          candidato: value,
+        };
+      }
+
+      return prev;
     });
   };
 
@@ -282,7 +374,7 @@ export function GlobalFilters() {
   const canApply = Boolean(draft.ano && draft.uf && hasPendingChanges);
 
   return (
-    <div className="glass-panel mb-6 flex flex-wrap items-end gap-4 rounded-xl p-4 print:hidden">
+    <div className="glass-panel relative z-20 mb-6 flex flex-wrap items-end gap-4 rounded-xl p-4 print:hidden">
       <div className="flex flex-col">
         <label className="text-sm font-medium mb-1">Eleição/Ano</label>
         <select
@@ -320,19 +412,16 @@ export function GlobalFilters() {
         <label className="text-sm font-medium mb-1">
           {isMunicipal ? 'Município*' : 'Cidade (opcional)'}
         </label>
-        <select
-          className="border rounded p-2 text-sm bg-white max-w-[200px]"
-          value={draft.municipio || ''}
-          onChange={(e) => updateDraft('municipio', e.target.value || null)}
+        <SearchableSelect
+          options={municipios}
+          value={draft.municipio}
+          onChange={(cd) => updateDraft('municipio', cd)}
           disabled={!draft.uf}
-        >
-          <option value="">{isMunicipal ? '— Selecione' : '— (eleição geral)'}</option>
-          {municipios.map((m) => (
-            <option key={m.cd} value={m.cd}>
-              {m.nm}
-            </option>
-          ))}
-        </select>
+          placeholder={isMunicipal ? '— Selecione' : '— (eleição geral)'}
+          getOptionValue={(m) => m.cd}
+          getOptionLabel={(m) => m.nm}
+          clearOnFocus
+        />
       </div>
 
       <div className="flex flex-col">
