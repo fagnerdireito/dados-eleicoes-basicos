@@ -1,6 +1,7 @@
 'use client';
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useNavigationLoading } from '@/components/NavigationLoading';
 
 export const TAB_LABELS = [
   { id: '1', label: '1. Sumário' },
@@ -19,17 +20,22 @@ export function TabsNavigation() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { isPending, startNavigation } = useNavigationLoading();
 
   const currentTab = searchParams.get('tab') || '1';
 
   const setTab = (id: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', id);
-    router.push(`${pathname}?${params.toString()}`);
+    startNavigation(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    });
   };
 
   return (
-    <div className="glass-panel mb-6 flex flex-wrap gap-1 rounded-xl p-2 print:hidden">
+    <div
+      className={`glass-panel mb-6 flex flex-wrap gap-1 rounded-xl p-2 transition-opacity duration-200 print:hidden ${isPending ? 'pointer-events-none opacity-40' : ''}`}
+    >
       {TAB_LABELS.map(tab => (
         <button
           key={tab.id}

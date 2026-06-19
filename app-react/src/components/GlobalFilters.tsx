@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { listarAnos, listarUfs, listarMunicipios, listarCargos, listarCandidatos } from '@/app/actions';
 import { Button } from '@/components/ui/button';
+import { useNavigationLoading } from '@/components/NavigationLoading';
 
 type CandidatoOption = {
   nr: string;
@@ -295,6 +296,7 @@ export function GlobalFilters() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { startNavigation } = useNavigationLoading();
 
   const applied = filtersFromParams(searchParams);
   const [draft, setDraft] = useState<FilterState>(applied);
@@ -417,7 +419,9 @@ export function GlobalFilters() {
       });
     }
 
-    router.push(`${pathname}?${params.toString()}`);
+    startNavigation(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    });
   };
 
   const restoreQuery = (entry: QueryHistoryEntry) => {
@@ -428,7 +432,9 @@ export function GlobalFilters() {
     if (entry.params.cargo) params.set('cargo', entry.params.cargo);
     if (entry.params.candidato) params.set('candidato', entry.params.candidato);
     if (entry.params.tab) params.set('tab', entry.params.tab);
-    router.push(`${pathname}?${params.toString()}`);
+    startNavigation(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    });
   };
 
   useEffect(() => {
