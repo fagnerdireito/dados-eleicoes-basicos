@@ -8,14 +8,19 @@ function fmtInt(val: number) {
 }
 
 function DataTable({
+  title,
+  total,
   columns,
   rows,
 }: {
+  title: string;
+  total?: string;
   columns: { key: string; label: string; align?: 'left' | 'right' }[];
   rows: Record<string, string | number>[];
 }) {
   return (
     <div className="soft-card chart-print-bg overflow-hidden">
+      <h4 className="soft-section-title mb-4 pl-1">{title}</h4>
       <table className="w-full bg-white text-sm">
         <thead className="border-b bg-gray-50">
           <tr>
@@ -44,6 +49,11 @@ function DataTable({
           ))}
         </tbody>
       </table>
+      {total && (
+        <p className="soft-footnote mt-4 border-t border-gray-100 pt-4 pl-3">
+          Total: <strong>{total}</strong>
+        </p>
+      )}
     </div>
   );
 }
@@ -106,9 +116,10 @@ export async function TabVotosBairro({ searchParams }: { searchParams: { [key: s
       )}
 
       {dfMun.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <h4 className="soft-section-title">Município</h4>
+        <section>
           <DataTable
+            title="Município"
+            total={fmtInt(totalMun)}
             columns={[
               { key: 'nm', label: 'Município' },
               { key: 'ano', label: 'Ano' },
@@ -120,65 +131,60 @@ export async function TabVotosBairro({ searchParams }: { searchParams: { [key: s
               votos: fmtInt(r.votos),
             }))}
           />
-          <p className="soft-footnote">
-            Total: <strong>{fmtInt(totalMun)}</strong>
-          </p>
         </section>
       )}
 
       {municipio && (
         <>
-          <section className="flex flex-col gap-3">
-            <h4 className="soft-section-title">Bairro</h4>
+          <section>
             {dfBairro.length === 0 ? (
-              <p className="soft-subtitle">Sem votos por bairro para o filtro.</p>
+              <div className="soft-card chart-print-bg">
+                <h4 className="soft-section-title mb-2">Bairro</h4>
+                <p className="soft-subtitle">Sem votos por bairro para o filtro.</p>
+              </div>
             ) : (
-              <>
-                <DataTable
-                  columns={[
-                    { key: 'bairro', label: 'Bairro' },
-                    { key: 'ano', label: 'Ano' },
-                    { key: 'candidato', label: 'Candidato' },
-                    { key: 'votos', label: 'Votos', align: 'right' },
-                  ]}
-                  rows={dfBairro.map((r) => ({
-                    bairro: r.bairro,
-                    ano,
-                    candidato: r.nm_votavel,
-                    votos: fmtInt(r.votos),
-                  }))}
-                />
-                <p className="soft-footnote">
-                  Total: <strong>{fmtInt(totalBairro)}</strong>
-                </p>
-              </>
+              <DataTable
+                title="Bairro"
+                total={fmtInt(totalBairro)}
+                columns={[
+                  { key: 'bairro', label: 'Bairro' },
+                  { key: 'ano', label: 'Ano' },
+                  { key: 'candidato', label: 'Candidato' },
+                  { key: 'votos', label: 'Votos', align: 'right' },
+                ]}
+                rows={dfBairro.map((r) => ({
+                  bairro: r.bairro,
+                  ano,
+                  candidato: r.nm_votavel,
+                  votos: fmtInt(r.votos),
+                }))}
+              />
             )}
           </section>
 
-          <section className="flex flex-col gap-3">
-            <h4 className="soft-section-title">Local</h4>
+          <section>
             {dfLocal.length === 0 ? (
-              <p className="soft-subtitle">Sem votos por local para o filtro.</p>
+              <div className="soft-card chart-print-bg">
+                <h4 className="soft-section-title mb-2">Local</h4>
+                <p className="soft-subtitle">Sem votos por local para o filtro.</p>
+              </div>
             ) : (
-              <>
-                <DataTable
-                  columns={[
-                    { key: 'local', label: 'Local' },
-                    { key: 'ano', label: 'Ano' },
-                    { key: 'candidato', label: 'Candidato' },
-                    { key: 'votos', label: 'Votos', align: 'right' },
-                  ]}
-                  rows={dfLocal.map((r) => ({
-                    local: r.local,
-                    ano,
-                    candidato: r.nm_votavel,
-                    votos: fmtInt(r.votos),
-                  }))}
-                />
-                <p className="soft-footnote">
-                  Total: <strong>{fmtInt(totalLocal)}</strong>
-                </p>
-              </>
+              <DataTable
+                title="Local"
+                total={fmtInt(totalLocal)}
+                columns={[
+                  { key: 'local', label: 'Local' },
+                  { key: 'ano', label: 'Ano' },
+                  { key: 'candidato', label: 'Candidato' },
+                  { key: 'votos', label: 'Votos', align: 'right' },
+                ]}
+                rows={dfLocal.map((r) => ({
+                  local: r.local,
+                  ano,
+                  candidato: r.nm_votavel,
+                  votos: fmtInt(r.votos),
+                }))}
+              />
             )}
           </section>
         </>

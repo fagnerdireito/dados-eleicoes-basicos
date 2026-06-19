@@ -124,8 +124,11 @@ export function MapEstado({ uf, data, totalVotos }: { uf: string; data: any[]; t
   };
 
   return (
-    <div className="flex w-full gap-6 print:w-full print:gap-2">
-      <div ref={containerRef} className="relative min-w-0 w-3/5 overflow-hidden rounded-lg bg-white shadow-lg chart-print-bg print:w-3/5">
+    <div className="votos-estado-layout flex w-full flex-col gap-6 lg:flex-row lg:items-start print:flex-col print:gap-4">
+      <div
+        ref={containerRef}
+        className="relative h-auto w-full shrink-0 self-start overflow-hidden rounded-lg bg-white shadow-lg chart-print-bg lg:w-3/5 print:w-full"
+      >
         <svg
           viewBox={`0 0 ${WIDTH} ${height}`}
           className="w-full h-auto block"
@@ -193,7 +196,7 @@ export function MapEstado({ uf, data, totalVotos }: { uf: string; data: any[]; t
         )}
       </div>
 
-      <div className="flex min-w-0 w-2/5 flex-col rounded-lg bg-white p-4 shadow-lg chart-print-bg print:w-2/5 print:p-2">
+      <div className="flex min-w-0 w-full flex-col rounded-lg bg-white p-4 shadow-lg chart-print-bg lg:w-2/5 print:mt-10 print:w-full print:p-2">
         <h3 className="mb-3 text-sm font-bold text-[#0b2545]">
           Top municípios (votos do candidato)
         </h3>
@@ -201,7 +204,7 @@ export function MapEstado({ uf, data, totalVotos }: { uf: string; data: any[]; t
           Total de votos no estado · {new Intl.NumberFormat('pt-BR').format(totalVotos)}
           <Vote className="h-4 w-4 shrink-0" strokeWidth={2.25} />
         </span>
-        <ol className="overflow-y-auto text-sm">
+        <ol className="text-sm lg:max-h-none lg:overflow-visible print:overflow-visible">
           {topMunicipios.map((m, i) => (
             <li
               key={m.cd ?? m.cd_ibge ?? i}

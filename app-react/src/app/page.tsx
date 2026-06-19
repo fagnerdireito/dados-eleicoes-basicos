@@ -17,10 +17,32 @@ import { TabComparativo } from '@/components/tabs/TabComparativo';
 import { TabVotosBairro } from '@/components/tabs/TabVotosBairro';
 import { Suspense } from 'react';
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
+type SearchParams = { [key: string]: string | undefined };
+
+// Com cacheComponents (PPR) habilitado, o acesso a searchParams precisa
+// acontecer dentro de um <Suspense>. Por isso o await é feito aqui, num
+// componente que recebe a Promise e é renderizado dentro do boundary.
+async function TabContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const resolvedSearchParams = await searchParams;
   const currentTab = resolvedSearchParams.tab || '1';
 
+  return (
+    <>
+      {currentTab === '1' && <TabSumario searchParams={resolvedSearchParams} />}
+      {currentTab === '2' && <TabResumoMunicipio searchParams={resolvedSearchParams} />}
+      {currentTab === '3' && <TabPerfilEleitorado searchParams={resolvedSearchParams} />}
+      {currentTab === '4' && <TabVotosEstado searchParams={resolvedSearchParams} />}
+      {currentTab === '5' && <TabVotosMunicipio searchParams={resolvedSearchParams} />}
+      {currentTab === '6' && <TabRankingMunicipio searchParams={resolvedSearchParams} />}
+      {currentTab === '7' && <TabSinteseTerritorial searchParams={resolvedSearchParams} />}
+      {currentTab === '8' && <TabCardLocal searchParams={resolvedSearchParams} />}
+      {currentTab === '9' && <TabComparativo searchParams={resolvedSearchParams} />}
+      {currentTab === '10' && <TabVotosBairro searchParams={resolvedSearchParams} />}
+    </>
+  );
+}
+
+export default function Home({ searchParams }: { searchParams: Promise<SearchParams> }) {
   return (
     <NavigationLoadingProvider>
       <div className="flex flex-col print:w-full">
@@ -33,56 +55,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
         </Suspense>
 
         <HomeTabPanel>
-          {currentTab === '1' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabSumario searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '2' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabResumoMunicipio searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '3' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabPerfilEleitorado searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '4' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabVotosEstado searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '5' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabVotosMunicipio searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '6' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabRankingMunicipio searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '7' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabSinteseTerritorial searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '8' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabCardLocal searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '9' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabComparativo searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
-          {currentTab === '10' && (
-            <Suspense fallback={<TabContentLoadingFallback />}>
-              <TabVotosBairro searchParams={resolvedSearchParams} />
-            </Suspense>
-          )}
+          <Suspense fallback={<TabContentLoadingFallback />}>
+            <TabContent searchParams={searchParams} />
+          </Suspense>
         </HomeTabPanel>
       </div>
     </NavigationLoadingProvider>

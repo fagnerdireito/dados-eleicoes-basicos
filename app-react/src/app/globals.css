@@ -309,6 +309,13 @@
     padding: 1.5rem;
   }
 
+  .soft-ranking-row {
+    background: var(--soft-surface);
+    border: none;
+    border-radius: var(--soft-radius);
+    box-shadow: var(--soft-shadow-sm);
+  }
+
   .soft-icon-badge {
     display: flex;
     align-items: center;
@@ -453,7 +460,8 @@
   }
 
   .soft-card,
-  .soft-stat-card {
+  .soft-stat-card,
+  .soft-ranking-row {
     overflow: visible !important;
     box-shadow:
       0 2px 12px rgba(15, 23, 42, 0.08),
@@ -489,6 +497,7 @@
 
   .soft-card,
   .soft-stat-card,
+  .soft-ranking-row,
   .soft-icon-badge,
   .summary-chip-dot,
   .summary-bar-segment,
@@ -576,5 +585,63 @@
     width: 100% !important;
     max-width: 100% !important;
     break-inside: avoid;
+  }
+
+  .perfil-eleitorado-grid {
+    align-items: start;
+  }
+
+  .perfil-kpi-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .perfil-chart-panel {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .perfil-chart-age,
+  .perfil-chart-education {
+    height: 360px !important;
+  }
+
+  .votos-estado-layout {
+    align-items: stretch !important;
+  }
+
+  .votos-estado-layout > :first-child {
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .votos-estado-layout > :last-child {
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .votos-municipio-layout {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .votos-municipio-map {
+    width: 100% !important;
+    height: 400px !important;
+    overflow: hidden !important;
+  }
+
+  .votos-municipio-map > div {
+    height: 400px !important;
+  }
+
+  .votos-municipio-map svg {
+    height: 100% !important;
+    width: 100% !important;
+  }
+
+  .votos-municipio-list {
+    width: 100% !important;
+    height: auto !important;
   }
 }

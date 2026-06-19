@@ -53,9 +53,9 @@ export async function TabPerfilEleitorado({ searchParams }: { searchParams: { [k
         <p className="text-gray-500">Comparecimento do pleito e composição cadastral do eleitorado</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1 flex md:flex-col gap-4">
-          <div className="grid w-full grid-cols-[auto_1fr] items-center gap-3 rounded-lg bg-white p-4 shadow-lg chart-print-bg">
+      <div className="perfil-eleitorado-grid grid grid-cols-1 gap-6 lg:grid-cols-4 print:grid-cols-1 print:gap-4">
+        <div className="perfil-kpi-row flex flex-col gap-4 lg:col-span-1 print:flex-row print:gap-4">
+          <div className="grid w-full grid-cols-[auto_1fr] items-center gap-3 rounded-lg bg-white p-4 shadow-lg chart-print-bg print:min-w-0 print:flex-1">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center self-center rounded-2xl bg-emerald-100 text-emerald-600 shadow-sm chart-print-bg">
               <UserCheck className="h-5 w-5" strokeWidth={2.25} />
             </div>
@@ -66,7 +66,7 @@ export async function TabPerfilEleitorado({ searchParams }: { searchParams: { [k
             </div>
           </div>
 
-          <div className="grid w-full grid-cols-[auto_1fr] items-center gap-3 rounded-lg bg-white p-4 shadow-lg chart-print-bg">
+          <div className="grid w-full grid-cols-[auto_1fr] items-center gap-3 rounded-lg bg-white p-4 shadow-lg chart-print-bg print:min-w-0 print:flex-1">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center self-center rounded-2xl bg-orange-100 text-orange-600 shadow-sm chart-print-bg">
               <UserMinus className="h-5 w-5" strokeWidth={2.25} />
             </div>
@@ -78,26 +78,26 @@ export async function TabPerfilEleitorado({ searchParams }: { searchParams: { [k
           </div>
         </div>
 
-        <div className="lg:col-span-3 flex flex-row w-full gap-6">
+        <div className="flex w-full flex-col gap-6 lg:col-span-3 lg:flex-row print:flex-row print:gap-4">
           {!ages && !education ? (
             <div className="md:col-span-2 bg-blue-50 text-blue-800 p-4 rounded">
               Tabela `perfil_eleitorado` não encontrada no banco ou sem dados.
             </div>
           ) : (
             <>
-              <div className="w-full bg-white rounded-lg chart-print-bg px-4 py-4 shadow-xl">
-                <h4 className="font-semibold text-[#0b2545] mb-4">Eleitorado por faixa etária</h4>
+              <div className="perfil-chart-panel w-full flex-1 rounded-lg bg-white px-4 py-4 shadow-xl chart-print-bg print:min-w-0 print:py-2 print:shadow-none">
+                <h4 className="font-semibold text-[#0b2545] mb-4 print:mb-2">Eleitorado por faixa etária</h4>
                 {ages && ages.length > 0 ? (
-                  <BarChartHorizontal data={ages} height={600} />
+                  <BarChartHorizontal data={ages} height={600} className="perfil-chart-age" />
                 ) : (
                   <div className="text-sm text-gray-500">Sem dados para esse recorte.</div>
                 )}
               </div>
               
-              <div className="w-full bg-white rounded-lg chart-print-bg px-4 py-4 shadow-xl">
-                <h4 className="font-semibold text-[#0b2545] mb-4">Eleitorado por escolaridade</h4>
+              <div className="perfil-chart-panel w-full flex-1 rounded-lg bg-white px-4 py-4 shadow-xl chart-print-bg print:min-w-0 print:py-2 print:shadow-none">
+                <h4 className="font-semibold text-[#0b2545] mb-4 print:mb-2">Eleitorado por escolaridade</h4>
                 {education && education.length > 0 ? (
-                  <BarChartHorizontal data={education} height={460} />
+                  <BarChartHorizontal data={education} height={460} className="perfil-chart-education" />
                 ) : (
                   <div className="text-sm text-gray-500">Sem dados para esse recorte.</div>
                 )}

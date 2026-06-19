@@ -195,7 +195,7 @@ function SearchableSelect({
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
-        className="w-full rounded border bg-white p-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full rounded-md border bg-white p-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={placeholder}
         value={query}
         disabled={disabled}
@@ -490,7 +490,7 @@ export function GlobalFilters() {
       <div className="flex flex-col">
         <label className="text-sm font-medium mb-1">Eleição/Ano</label>
         <select
-          className="border rounded p-2 text-sm bg-white"
+          className="rounded-md border bg-white p-2 text-sm"
           value={draft.ano || ''}
           onChange={(e) => updateDraft('ano', e.target.value || null)}
         >
@@ -506,7 +506,7 @@ export function GlobalFilters() {
       <div className="flex flex-col">
         <label className="text-sm font-medium mb-1">UF</label>
         <select
-          className="border rounded p-2 text-sm bg-white min-w-[80px]"
+          className="min-w-[80px] rounded-md border bg-white p-2 text-sm"
           value={draft.uf || ''}
           onChange={(e) => updateDraft('uf', e.target.value || null)}
           disabled={!draft.ano}
@@ -539,7 +539,7 @@ export function GlobalFilters() {
       <div className="flex flex-col">
         <label className="text-sm font-medium mb-1">Cargo</label>
         <select
-          className="border rounded p-2 text-sm bg-white max-w-[200px]"
+          className="max-w-[200px] rounded-md border bg-white p-2 text-sm"
           value={draft.cargo || ''}
           onChange={(e) => updateDraft('cargo', e.target.value || null)}
           disabled={!draft.uf || (isMunicipal && !draft.municipio)}

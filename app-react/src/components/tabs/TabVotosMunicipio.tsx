@@ -54,21 +54,21 @@ export async function TabVotosMunicipio({ searchParams }: { searchParams: { [key
         </p>
       </div>
 
-      <div className="flex flex-col gap-6 md:flex-row">
-        <div className="w-full md:w-2/3">
+      <div className="votos-municipio-layout flex flex-col gap-6 md:flex-row md:items-start print:flex-col print:gap-4">
+        <div className="votos-municipio-map w-full md:w-2/3">
           <MapMunicipioDynamicWrapper uf={uf} cdIbge={cdIbge} municipioNome={municipioNome} data={data} />
           <p className="mt-2 text-sm text-gray-400 print:hidden">
             Mapa coroplético do município com marcadores nos locais de votação (tamanho conforme os votos). Use a roda do mouse ou os botões para zoom; arraste para mover.
           </p>
         </div>
 
-        <div className="flex w-full flex-col rounded-lg bg-white p-4 shadow-lg border border-gray-100 chart-print-bg md:w-1/3 print:mt-10">
+        <div className="votos-municipio-list flex w-full flex-col rounded-lg border border-gray-100 bg-white p-4 shadow-lg chart-print-bg md:w-1/3 print:mt-10 print:w-full print:shadow-none">
           <h4 className="mb-3 font-semibold text-[#0b2545]">Top locais (votos do candidato)</h4>
           <span className="recorte-pill chart-print-bg mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-indigo-600/70 px-4 py-1.5 text-sm font-semibold text-white">
             Total de votos no município · {fmtInt(totalVotos)}
             <Vote className="h-4 w-4 shrink-0" strokeWidth={2.25} />
           </span>
-          <div className="max-h-[520px] overflow-y-auto pr-2">
+          <div className="max-h-[520px] overflow-y-auto pr-2 print:max-h-none print:overflow-visible print:pr-0">
             {data.map((r, i) => (
               <div
                 key={i}

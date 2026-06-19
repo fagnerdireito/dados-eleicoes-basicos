@@ -2,7 +2,15 @@
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-export function BarChartHorizontal({ data, height = 400 }: { data: any[], height?: number }) {
+export function BarChartHorizontal({
+  data,
+  height = 400,
+  className,
+}: {
+  data: any[];
+  height?: number;
+  className?: string;
+}) {
   const total = data.reduce((acc, curr) => acc + curr.eleitores, 0);
   
   const plotData = data.map(d => ({
@@ -24,7 +32,7 @@ export function BarChartHorizontal({ data, height = 400 }: { data: any[], height
   };
 
   return (
-    <div style={{ width: '100%', height }}>
+    <div className={className} style={{ width: '100%', height }}>
       <ResponsiveContainer>
         <BarChart
           layout="vertical"
