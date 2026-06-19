@@ -1,3 +1,5 @@
+'use cache';
+
 import { query } from '@/lib/db';
 import { checkTableExists } from '@/app/actions-tab3';
 

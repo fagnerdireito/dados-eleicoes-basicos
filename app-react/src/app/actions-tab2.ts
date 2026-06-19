@@ -1,3 +1,5 @@
+'use cache';
+
 import { query } from '@/lib/db';
 
 export async function resumoCandidatoMunicipio(ano: number, uf: string, cdMunicipio: string, cdCargo: string, nrVotavel: string) {

@@ -1,3 +1,5 @@
+'use cache';
+
 import { query } from '@/lib/db';
 
 export async function rankingMunicipio(ano: number, uf: string, cdMunicipio: string, cdCargo: string, top: number = 10) {
