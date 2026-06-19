@@ -347,11 +347,11 @@ export function GlobalFilters() {
       if (key === 'municipio') {
         if (value === prev.municipio) return prev;
 
+        // Trocar a cidade (eleição geral ou municipal) não reinicia cargo e
+        // candidato — mantém os filtros já escolhidos.
         return {
           ...prev,
           municipio: value,
-          cargo: null,
-          candidato: null,
         };
       }
 

@@ -234,7 +234,7 @@ export function MapMunicipio({
 
   if (!geoData) {
     return (
-      <div className="flex h-[520px] items-center justify-center rounded-lg bg-gray-100">
+      <div className="flex h-[380px] items-center justify-center rounded-lg bg-gray-100">
         Carregando mapa...
       </div>
     );
@@ -242,7 +242,7 @@ export function MapMunicipio({
 
   if (!mapModel) {
     return (
-      <div className="flex h-[520px] items-center justify-center rounded-lg bg-gray-100 text-sm text-gray-500">
+      <div className="flex h-[480px] items-center justify-center rounded-lg bg-gray-100 text-sm text-gray-500">
         Contorno do município não encontrado no GeoJSON.
       </div>
     );

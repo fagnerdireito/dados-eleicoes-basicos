@@ -411,6 +411,16 @@
     padding: 1rem 1.25rem;
     color: var(--soft-accent-blue);
   }
+
+  @media (min-width: 768px) {
+    .votos-municipio-map > div {
+      max-height: 480px;
+    }
+
+    .votos-municipio-map svg {
+      max-height: 480px;
+    }
+  }
 }
 
 @keyframes data-loading-pulse {
