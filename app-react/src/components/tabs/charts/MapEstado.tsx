@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Vote } from 'lucide-react';
 
 const UF_CODIGO_IBGE: Record<string, string> = {
   "RO": "11", "AC": "12", "AM": "13", "RR": "14", "PA": "15", "AP": "16", "TO": "17",
@@ -15,7 +16,7 @@ const WIDTH = 800;
 
 type Tooltip = { x: number; y: number; nome: string; votos: number } | null;
 
-export function MapEstado({ uf, data }: { uf: string, data: any[] }) {
+export function MapEstado({ uf, data, totalVotos }: { uf: string; data: any[]; totalVotos: number }) {
   const [geoData, setGeoData] = useState<any>(null);
   const [tooltip, setTooltip] = useState<Tooltip>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -123,8 +124,8 @@ export function MapEstado({ uf, data }: { uf: string, data: any[] }) {
   };
 
   return (
-    <div className="flex w-full gap-4 print:gap-2 print:w-full">
-      <div ref={containerRef} className="relative w-3/5 min-w-0 rounded border bg-white overflow-hidden print:w-3/5">
+    <div className="flex w-full gap-6 print:w-full print:gap-2">
+      <div ref={containerRef} className="relative min-w-0 w-3/5 overflow-hidden rounded-lg bg-white shadow-lg chart-print-bg print:w-3/5">
         <svg
           viewBox={`0 0 ${WIDTH} ${height}`}
           className="w-full h-auto block"
@@ -192,10 +193,14 @@ export function MapEstado({ uf, data }: { uf: string, data: any[] }) {
         )}
       </div>
 
-      <div className="w-2/5 min-w-0 rounded border bg-white p-4 flex flex-col print:w-2/5 print:p-2">
-        <h3 className="text-sm font-bold text-[#0b2545] mb-3">
+      <div className="flex min-w-0 w-2/5 flex-col rounded-lg bg-white p-4 shadow-lg chart-print-bg print:w-2/5 print:p-2">
+        <h3 className="mb-3 text-sm font-bold text-[#0b2545]">
           Top municípios (votos do candidato)
         </h3>
+        <span className="recorte-pill chart-print-bg mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-indigo-600/70 px-4 py-1.5 text-sm font-semibold text-white">
+          Total de votos no estado · {new Intl.NumberFormat('pt-BR').format(totalVotos)}
+          <Vote className="h-4 w-4 shrink-0" strokeWidth={2.25} />
+        </span>
         <ol className="overflow-y-auto text-sm">
           {topMunicipios.map((m, i) => (
             <li

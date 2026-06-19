@@ -29,8 +29,8 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${plusJakartaSans.variable} ${geistMono.variable} h-full antialiased print:h-auto print:w-full`}
     >
-      <body className="min-h-full flex flex-col bg-radial from-slate-300 to-slate-50 font-sans text-gray-900 print:m-0 print:p-0 print:w-full print:max-w-none print:bg-white">
-        <main className="mx-auto w-full max-w-7xl p-4 grow flex flex-col print:max-w-none print:w-full print:mx-0 print:px-0 print:py-0">
+      <body className="min-h-full flex flex-col bg-radial from-slate-300 to-slate-50 font-sans text-gray-900 print:m-0 print:p-0 print:w-full print:max-w-none print:bg-white mb-36">
+        <main className="mx-auto w-full max-w-7xl p-4 grow flex flex-col print:max-w-none print:w-full print:mx-0 print:px-0 print:py-0 mb-36">
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.25] print:hidden" style={{ zIndex: -1 }}
             viewBox="0 0 1000 600"

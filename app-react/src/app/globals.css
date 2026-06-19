@@ -464,6 +464,17 @@
     print-color-adjust: exact;
   }
 
+  .recorte-pill {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background-color: rgb(79 70 229 / 0.85) !important;
+    color: #fff !important;
+  }
+
+  .recorte-pill svg {
+    stroke: #fff !important;
+  }
+
   .soft-card,
   .soft-stat-card,
   .soft-icon-badge,
