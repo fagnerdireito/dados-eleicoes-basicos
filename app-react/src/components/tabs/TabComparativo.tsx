@@ -1,6 +1,7 @@
 import { comparativoVotosTerritorio } from '@/app/actions-tab9';
 import { listarCandidatos } from '@/app/actions';
 import { checkTableExists } from '@/app/actions-tab3';
+import { ComparativoCandidatoPicker } from '@/components/tabs/ComparativoCandidatoPicker';
 import Link from 'next/link';
 
 function fmtInt(val: number) {
@@ -24,10 +25,15 @@ export async function TabComparativo({ searchParams }: { searchParams: { [key: s
   const dimensao = dim || 'zona';
   
   // Parse selected candidates
-  let selectedNrs = cands ? cands.split(',') : [candidato as string];
-  if (selectedNrs.length > 4) selectedNrs = selectedNrs.slice(0, 4); // Max 4
+  let selectedNrs = cands
+    ? cands.split(',').map((s) => s.trim()).filter(Boolean)
+    : candidato
+      ? [candidato]
+      : [];
+  if (selectedNrs.length === 0 && candidato) selectedNrs = [candidato];
+  if (selectedNrs.length > 4) selectedNrs = selectedNrs.slice(0, 4);
 
-  const todosCandidatos = await listarCandidatos(anoNum, uf, cargo, municipio);
+  const todosCandidatos = await listarCandidatos(anoNum, uf, cargo, municipio, 500);
   const hasLocalVotacao = await checkTableExists('local_votacao');
 
   const dimLabels = {
@@ -81,12 +87,43 @@ export async function TabComparativo({ searchParams }: { searchParams: { [key: s
   const sortCol = `${selectedNrs[0]}_votos`;
   rows.sort((a, b) => (b[sortCol] || 0) - (a[sortCol] || 0));
 
+  const mostrarComparativo = selectedNrs.length > 1;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-2xl font-bold text-[#0b2545]">Comparativo de candidatos no município</h2>
         <p className="text-gray-500">Compara até 4 candidatos nas divisões do município</p>
       </div>
+
+      <ComparativoCandidatoPicker
+        candidatos={todosCandidatos}
+        selectedNrs={selectedNrs}
+        searchParams={searchParams}
+      />
+
+      {selectedNrs.length > 0 && (
+        <div className={`grid gap-4 ${selectedNrs.length === 1 ? 'grid-cols-1 max-w-xs' : selectedNrs.length === 2 ? 'grid-cols-2' : selectedNrs.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+          {selectedNrs.map((nr, i) => {
+            const cInfo = todosCandidatos.find((c: { nr: string }) => c.nr === nr);
+            const color = CAND_COLORS[i % CAND_COLORS.length];
+            return (
+              <div
+                key={nr}
+                className="rounded-lg border-2 bg-[#fafbfd] p-3 text-center"
+                style={{ borderColor: color }}
+              >
+                <div className="text-sm font-bold text-[#0b2545]">{cInfo?.nm ?? nr}</div>
+                <div className="text-xs text-gray-500">{cInfo?.sg_partido ?? '—'}</div>
+                <div className="mt-1 text-2xl font-extrabold" style={{ color }}>
+                  {fmtInt(Number(cInfo?.votos ?? 0))}
+                </div>
+                <div className="text-xs text-gray-500">votos no município</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex gap-4 items-center bg-gray-50 p-4 border rounded-lg overflow-x-auto">
         <span className="font-semibold text-sm mr-2">Dimensão:</span>
@@ -147,7 +184,19 @@ export async function TabComparativo({ searchParams }: { searchParams: { [key: s
                   {selectedNrs.map((nr) => (
                     <td key={nr} className="py-3 px-4 text-right border-l">
                       <div className="font-bold text-[#0b2545]">{fmtInt(row[`${nr}_votos`])}</div>
-                      <div className="text-xs text-gray-500">{fmtPct(row[`${nr}_pct_territorio`])} no local</div>
+                      <div className="text-xs text-gray-500">
+                        <span title={`% sobre o total do ${dimLabels[dimensao as keyof typeof dimLabels].toLowerCase()}`}>
+                          {fmtPct(row[`${nr}_pct_territorio`])}
+                        </span>
+                        {mostrarComparativo && (
+                          <>
+                            <span className="mx-1 text-gray-300">|</span>
+                            <span title="% entre os candidatos comparados">
+                              {fmtPct(row[`${nr}_pct_comparativo`])}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </td>
                   ))}
                 </tr>
