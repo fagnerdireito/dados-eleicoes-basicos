@@ -13,7 +13,7 @@ package main
 
 import (
 	"database/sql"
-	"encoding/csv"
+	"eleicoes/go_postgres/csvutil"
 	"fmt"
 	"io"
 	"log"
@@ -25,7 +25,6 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
-	"golang.org/x/text/encoding/charmap"
 )
 
 // ── configuração ─────────────────────────────────────────────────────────────
@@ -229,24 +228,11 @@ func singleProcessFile(db *sql.DB, path string) error {
 	}
 	defer f.Close()
 
-	reader := csv.NewReader(charmap.ISO8859_1.NewDecoder().Reader(f))
-	reader.Comma = singleCsvSeparator
-	reader.LazyQuotes = true
-	reader.TrimLeadingSpace = true
-	reader.FieldsPerRecord = -1
+	reader := csvutil.NewLatin1Reader(f, singleCsvSeparator)
 
-	rawHeader, err := reader.Read()
+	_, colIndexes, err := csvutil.ReadHeader(reader, singleColumnMapping)
 	if err != nil {
 		return fmt.Errorf("ler cabeçalho: %w", err)
-	}
-
-	colIndexes := make(map[string]int, len(rawHeader))
-	for i, col := range rawHeader {
-		name := strings.ToUpper(strings.Trim(col, `"`))
-		if mapped, ok := singleColumnMapping[name]; ok {
-			name = mapped
-		}
-		colIndexes[name] = i
 	}
 
 	targetCols := make([]string, len(singleBuColumnLengths))
@@ -295,14 +281,16 @@ func singleProcessFile(db *sql.DB, path string) error {
 
 		row := make([]interface{}, len(targetCols))
 		for i, colName := range targetCols {
-			if idx, ok := colIndexes[colName]; ok && idx < len(record) {
-				v := strings.TrimSpace(record[idx])
-				if v == "" {
-					row[i] = nil
-				} else if colName == "DS_CARGO_PERGUNTA" || colName == "DS_CARGO_PERGUNTA_SECAO" {
-					row[i] = strings.ToUpper(v)
+			if idx, ok := colIndexes[colName]; ok {
+				if colName == "DS_CARGO_PERGUNTA" || colName == "DS_CARGO_PERGUNTA_SECAO" {
+					v := csvutil.Cell(record, idx)
+					if csvutil.IsNullSentinel(v) {
+						row[i] = nil
+					} else {
+						row[i] = strings.ToUpper(v)
+					}
 				} else {
-					row[i] = v
+					row[i] = csvutil.CellPtr(record, idx)
 				}
 			}
 		}

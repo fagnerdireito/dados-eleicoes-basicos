@@ -1,54 +1,74 @@
-'use cache';
-
 import { query } from '@/lib/db';
 import { checkTableExists } from '@/app/actions-tab3';
+import { LV_JOIN, LV_JOIN_CACHE_SALT } from '@/lib/local-votacao-join';
 
-export async function comparativoVotosTerritorio(ano: number, uf: string, cdMunicipio: string, cdCargo: string, nrs: string[], dimensao: string) {
+export async function comparativoVotosTerritorio(
+  ano: number,
+  uf: string,
+  cdMunicipio: string,
+  cdCargo: string,
+  nrs: string[],
+  dimensao: string,
+) {
+  return comparativoVotosTerritorioCached(
+    ano,
+    uf,
+    cdMunicipio,
+    cdCargo,
+    nrs,
+    dimensao,
+    LV_JOIN_CACHE_SALT,
+  );
+}
+
+async function comparativoVotosTerritorioCached(
+  ano: number,
+  uf: string,
+  cdMunicipio: string,
+  cdCargo: string,
+  nrs: string[],
+  dimensao: string,
+  _cacheSalt: string,
+) {
+  'use cache';
+
   if (nrs.length === 0) return [];
 
   const hasLocalVotacao = await checkTableExists('local_votacao');
-  
-  let secaoLocalSelect = hasLocalVotacao 
+
+  const secaoLocalSelect = hasLocalVotacao
     ? "MAX(COALESCE(NULLIF(TRIM(lv.\"NM_LOCAL_VOTACAO\"), ''), 'Local ' || b.\"NR_LOCAL_VOTACAO\")) AS nm_local,"
     : "MAX('Local ' || b.\"NR_LOCAL_VOTACAO\") AS nm_local,";
-    
-  let lvJoin = `
-    JOIN local_votacao lv
-      ON lv."SG_UF" = b."SG_UF"
-     AND lv."CD_MUNICIPIO" = b."CD_MUNICIPIO"
-     AND lv."NR_ZONA" = b."NR_ZONA"
-     AND lv."NR_SECAO" = b."NR_SECAO"
-  `;
 
-  let secaoJoin = hasLocalVotacao ? lvJoin : "";
-  let secaoGroupExtra = hasLocalVotacao 
+  const secaoJoin = hasLocalVotacao ? LV_JOIN : '';
+  const secaoGroupExtra = hasLocalVotacao
     ? 'b."NR_ZONA", b."NR_SECAO", lv."NM_LOCAL_VOTACAO", b."NR_LOCAL_VOTACAO"'
     : 'b."NR_ZONA", b."NR_SECAO", b."NR_LOCAL_VOTACAO"';
 
   const dimCfg: Record<string, any> = {
-    "zona": {
-      "territorio_expr": 'b."NR_ZONA"',
-      "join_clause": "",
-      "group_extra": 'b."NR_ZONA"',
-      "local_select": "NULL::text AS nm_local,",
+    zona: {
+      territorio_expr: 'b."NR_ZONA"',
+      join_clause: '',
+      group_extra: 'b."NR_ZONA"',
+      local_select: 'NULL::text AS nm_local,',
     },
-    "secao": {
-      "territorio_expr": 'b."NR_ZONA" || \' · Seção \' || b."NR_SECAO"',
-      "join_clause": secaoJoin,
-      "group_extra": secaoGroupExtra,
-      "local_select": secaoLocalSelect,
+    secao: {
+      territorio_expr: 'b."NR_ZONA" || \' · Seção \' || b."NR_SECAO"',
+      join_clause: secaoJoin,
+      group_extra: secaoGroupExtra,
+      local_select: secaoLocalSelect,
     },
-    "bairro": {
-      "territorio_expr": "COALESCE(NULLIF(TRIM(lv.\"NM_BAIRRO\"), ''), '(sem bairro)')",
-      "join_clause": lvJoin,
-      "group_extra": 'lv."NM_BAIRRO"',
-      "local_select": "NULL::text AS nm_local,",
+    bairro: {
+      territorio_expr: "COALESCE(NULLIF(TRIM(lv.\"NM_BAIRRO\"), ''), '(sem bairro)')",
+      join_clause: LV_JOIN,
+      group_extra: 'lv."NM_BAIRRO"',
+      local_select: 'NULL::text AS nm_local,',
     },
-    "local": {
-      "territorio_expr": "COALESCE(NULLIF(TRIM(lv.\"NM_LOCAL_VOTACAO\"), ''), 'Local ' || b.\"NR_LOCAL_VOTACAO\")",
-      "join_clause": lvJoin,
-      "group_extra": 'lv."NM_LOCAL_VOTACAO", b."NR_LOCAL_VOTACAO"',
-      "local_select": "NULL::text AS nm_local,",
+    local: {
+      territorio_expr: "COALESCE(NULLIF(TRIM(lv.\"NM_LOCAL_VOTACAO\"), ''), 'Local ' || b.\"NR_LOCAL_VOTACAO\")",
+      join_clause: LV_JOIN,
+      group_extra: 'lv."NM_LOCAL_VOTACAO", b."NR_LOCAL_VOTACAO"',
+      local_select: 'NULL::text AS nm_local,',
     },
   };
 
@@ -63,7 +83,6 @@ export async function comparativoVotosTerritorio(ano: number, uf: string, cdMuni
     "COALESCE(b.\"DS_TIPO_VOTAVEL\", '') NOT IN ('Branco', 'Nulo')",
   ];
 
-  // Pass array to PostgreSQL using ANY($5)
   const sql = `
     WITH all_votes AS (
         SELECT ${cfg.territorio_expr} AS territorio,
@@ -89,13 +108,13 @@ export async function comparativoVotosTerritorio(ano: number, uf: string, cdMuni
 
   const params = [ano.toString(), uf, cdMunicipio, cdCargo, nrs];
   const res = await query(sql, params);
-  
-  return res.rows.map(r => ({
+
+  return res.rows.map((r) => ({
     territorio: r.territorio,
     nm_local: r.nm_local,
     nr: r.nr,
     nm: r.nm,
     votos: parseInt(r.votos, 10),
-    total_territorio: parseInt(r.total_territorio, 10)
+    total_territorio: parseInt(r.total_territorio, 10),
   }));
 }

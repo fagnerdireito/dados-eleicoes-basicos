@@ -3,8 +3,8 @@ import { listarCandidatos } from '@/app/actions';
 import { checkTableExists } from '@/app/actions-tab3';
 import { resolverCapital } from '@/lib/capitais';
 import { ComparativoCandidatoPicker } from '@/components/tabs/ComparativoCandidatoPicker';
+import { ComparativoDimensaoSelector } from '@/components/tabs/ComparativoDimensaoSelector';
 import { Info } from 'lucide-react';
-import Link from 'next/link';
 
 function fmtInt(val: number) {
   return new Intl.NumberFormat('pt-BR').format(val);
@@ -152,30 +152,11 @@ export async function TabComparativo({ searchParams }: { searchParams: { [key: s
         </div>
       )}
 
-      <div className="flex gap-4 items-center bg-gray-50 p-4 border rounded-lg overflow-x-auto">
-        <span className="font-semibold text-sm mr-2">Dimensão:</span>
-        {Object.entries(dimLabels).map(([key, label]) => {
-          const isDisabled = !hasLocalVotacao && dimPrecisaLocalVotacao.includes(key);
-          const isActive = key === dimensao;
-          
-          const params = new URLSearchParams(searchParams as any);
-          params.set('dim', key);
-
-          if (isDisabled) {
-            return <span key={key} className="px-3 py-1 text-sm rounded bg-gray-200 text-gray-400 cursor-not-allowed" title="Requer local_votacao">{label}</span>;
-          }
-
-          return (
-            <Link 
-              key={key} 
-              href={`/?${params.toString()}`}
-              className={`px-3 py-1 text-sm rounded transition-colors whitespace-nowrap ${isActive ? 'bg-[#0b2545] text-white' : 'bg-white border hover:bg-gray-100 text-[#0b2545]'}`}
-            >
-              {label}
-            </Link>
-          );
-        })}
-      </div>
+      <ComparativoDimensaoSelector
+        dimensao={dimensao}
+        hasLocalVotacao={hasLocalVotacao}
+        searchParams={searchParams}
+      />
 
       {rows.length === 0 ? (
         <div className="bg-blue-50 text-blue-800 p-4 rounded">Sem dados para o filtro atual.</div>

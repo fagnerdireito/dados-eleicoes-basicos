@@ -1,4 +1,4 @@
-import { locaisDoMunicipio, nomeLocal, topCandidatosNoLocal } from '@/app/actions-tab8';
+import { locaisDoMunicipio, topCandidatosNoLocal } from '@/app/actions-tab8';
 import { listarCargos, listarMunicipios } from '@/app/actions';
 import { resolverCapital } from '@/lib/capitais';
 import { normalizeLocalName } from '@/lib/utils';
@@ -89,11 +89,8 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
     );
   }
 
-  // Build the list of local options with names
-  const locaisComNome = await Promise.all(locais.map(async l => {
-    const nome = await nomeLocal(uf, municipioEfetivo, l.nr_local);
-    return { ...l, nome: nome || `Local ${l.nr_local}` };
-  }));
+  // A lista já vem com o nome resolvido (via join por zona/seção em actions-tab8).
+  const locaisComNome = locais;
 
   const currentLocalObj =
     (local
@@ -101,7 +98,7 @@ export async function TabCardLocal({ searchParams }: { searchParams: { [key: str
         ?? locaisComNome.find((l) => l.nr_local === local)
       : undefined) ?? locaisComNome[0];
 
-  const d = await topCandidatosNoLocal(anoNum, uf, municipioEfetivo, cargo, currentLocalObj.nr_local);
+  const d = await topCandidatosNoLocal(anoNum, uf, municipioEfetivo, cargo, currentLocalObj.nome);
 
   const foco = d.ranking.find(r => r.nr === candidato);
 

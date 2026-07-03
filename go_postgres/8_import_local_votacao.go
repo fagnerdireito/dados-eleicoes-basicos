@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"encoding/csv"
+	"eleicoes/go_postgres/csvutil"
 	"fmt"
 	"io"
 	"log"
@@ -188,20 +188,10 @@ func lvImportFile(db *sql.DB, path string) (inserted, skipped int64, err error) 
 	}
 	defer f.Close()
 
-	reader := csv.NewReader(f)
-	reader.Comma = lvCsvSeparator
-	reader.LazyQuotes = true
-	reader.TrimLeadingSpace = true
-
-	rawHeader, err := reader.Read()
+	reader := csvutil.NewLatin1Reader(f, lvCsvSeparator)
+	_, colIndexes, err := csvutil.ReadHeader(reader, nil)
 	if err != nil {
 		return 0, 0, fmt.Errorf("ler cabeçalho: %w", err)
-	}
-
-	colIndexes := make(map[string]int, len(rawHeader))
-	for i, col := range rawHeader {
-		name := strings.ToUpper(strings.Trim(col, `"`))
-		colIndexes[name] = i
 	}
 
 	targetCols := make([]string, len(lvColumnLengths))

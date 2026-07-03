@@ -3,7 +3,7 @@ package main
 import (
 	"archive/zip"
 	"database/sql"
-	"encoding/csv"
+	"eleicoes/go_postgres/csvutil"
 	"fmt"
 	"io"
 	"log"
@@ -16,7 +16,6 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
-	"golang.org/x/text/encoding/charmap"
 )
 
 const (
@@ -232,20 +231,10 @@ func peImportZip(db *sql.DB, zipPath string) (inserted, skipped int64, err error
 }
 
 func peImportCsvStream(db *sql.DB, r io.Reader) (inserted, skipped int64, err error) {
-	dec := charmap.ISO8859_1.NewDecoder().Reader(r)
-	cr := csv.NewReader(dec)
-	cr.Comma = peCsvSeparator
-	cr.LazyQuotes = true
-	cr.TrimLeadingSpace = true
-	cr.FieldsPerRecord = -1
-
-	rawHeader, err := cr.Read()
+	cr := csvutil.NewLatin1Reader(r, peCsvSeparator)
+	_, colIdx, err := csvutil.ReadHeader(cr, nil)
 	if err != nil {
 		return 0, 0, fmt.Errorf("ler cabeçalho: %w", err)
-	}
-	colIdx := make(map[string]int, len(rawHeader))
-	for i, c := range rawHeader {
-		colIdx[strings.ToUpper(strings.Trim(c, `"`))] = i
 	}
 
 	target := make([]string, len(peColumnLengths))

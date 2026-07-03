@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"encoding/csv"
+	"eleicoes/go_postgres/csvutil"
 	"fmt"
 	"io"
 	"io/fs"
@@ -18,7 +18,6 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
-	"golang.org/x/text/encoding/charmap"
 )
 
 // Config holds DB configuration
@@ -331,29 +330,11 @@ func processFile(db *sql.DB, path string) error {
 	}
 	defer f.Close()
 
-	// Decodifica latin1 (ISO-8859-1) para UTF-8 em stream
-	reader := csv.NewReader(charmap.ISO8859_1.NewDecoder().Reader(f))
-	reader.Comma = csvSeparator
-	reader.LazyQuotes = true
-	reader.TrimLeadingSpace = true
-	// Arquivos de anos diferentes podem ter quantidades distintas de colunas; não
-	// exigir o mesmo número de campos em todas as linhas. Colunas são ligadas pelo
-	// nome no cabeçalho; as que não existem no arquivo viram NULL na inserção.
-	reader.FieldsPerRecord = -1
+	reader := csvutil.NewLatin1Reader(f, csvSeparator)
 
-	// Lê o cabeçalho e normaliza os nomes das colunas
-	rawHeader, err := reader.Read()
+	_, colIndexes, err := csvutil.ReadHeader(reader, columnMapping)
 	if err != nil {
 		return fmt.Errorf("ler cabeçalho: %w", err)
-	}
-
-	colIndexes := make(map[string]int, len(rawHeader))
-	for i, col := range rawHeader {
-		name := strings.ToUpper(strings.Trim(col, `"`))
-		if mapped, ok := columnMapping[name]; ok {
-			name = mapped
-		}
-		colIndexes[name] = i
 	}
 
 	// Lista de colunas alvo (na ordem da tabela)
@@ -398,15 +379,17 @@ func processFile(db *sql.DB, path string) error {
 
 		row := make([]interface{}, len(targetCols))
 		for i, colName := range targetCols {
-			if idx, ok := colIndexes[colName]; ok && idx < len(record) {
-				v := strings.TrimSpace(record[idx])
-				if v == "" {
-					row[i] = nil
-				} else if colName == "DS_CARGO_PERGUNTA" || colName == "DS_CARGO_PERGUNTA_SECAO" {
+			if idx, ok := colIndexes[colName]; ok {
+				if colName == "DS_CARGO_PERGUNTA" || colName == "DS_CARGO_PERGUNTA_SECAO" {
 					// CSV do TSE (ex.: 2024) usa "Prefeito"/"Vereador"; comparações SQL com 'PREFEITO' falham sem normalizar.
-					row[i] = strings.ToUpper(v)
+					v := csvutil.Cell(record, idx)
+					if csvutil.IsNullSentinel(v) {
+						row[i] = nil
+					} else {
+						row[i] = strings.ToUpper(v)
+					}
 				} else {
-					row[i] = v
+					row[i] = csvutil.CellPtr(record, idx)
 				}
 			}
 			// se coluna ausente, row[i] permanece nil

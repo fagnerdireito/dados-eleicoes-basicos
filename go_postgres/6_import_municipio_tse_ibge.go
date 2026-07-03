@@ -2,8 +2,8 @@ package main
 
 import (
 	"database/sql"
-	"encoding/csv"
 	"errors"
+	"eleicoes/go_postgres/csvutil"
 	"fmt"
 	"io"
 	"log"
@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
@@ -21,18 +20,10 @@ import (
 	"golang.org/x/text/language"
 )
 
-// Layout municipio_tse_ibge.csv (separador ;):
-// 0 DT_GERACAO, 1 HH_GERACAO, 2 CD_UF_TSE, 3 CD_UF_IBGE, 4 SG_UF, 5 NM_UF,
-// 6 CD_MUNICIPIO_TSE, 7 NM_MUNICIPIO_TSE, 8 CD_MUNICIPIO_IBGE, 9 NM_MUNICIPIO_IBGE.
 const (
-	idxSGUF       = 4
-	idxCDMunTSE   = 6
-	idxNMunTSE    = 7
-	idxCDMunIBGE  = 8
-	idxNMunIBGE   = 9
-	csvSep        = ';'
-	batchMaxRows  = 500
-	pgMaxParams   = 65535
+	csvSep       = ';'
+	batchMaxRows = 500
+	pgMaxParams  = 65535
 )
 
 // Maiúsculas para o nome do município (regras Unicode pt-BR).
@@ -68,23 +59,18 @@ func main() {
 	}
 	fmt.Printf("CSV: %s\n", csvPath)
 
-	text, err := readCSVText(csvPath)
+	f, err := os.Open(csvPath)
 	if err != nil {
-		log.Fatalf("ler CSV: %v", err)
+		log.Fatalf("abrir CSV: %v", err)
 	}
+	defer f.Close()
 
-	r := csv.NewReader(strings.NewReader(text))
-	r.Comma = csvSep
-	r.LazyQuotes = true
-
-	header, err := r.Read()
+	r := csvutil.NewLatin1Reader(f, csvSep)
+	_, colIdx, err := csvutil.ReadHeader(r, nil)
 	if err != nil {
 		log.Fatalf("CSV vazio ou inválido: %v", err)
 	}
-	firstIsHeader := len(header) > 0 && strings.EqualFold(strings.Trim(strings.TrimSpace(header[0]), `"`), "DT_GERACAO")
-	if firstIsHeader {
-		fmt.Println("Cabeçalho detectado (DT_GERACAO); linhas de dados usam SG_UF, CD_MUNICIPIO_TSE, NM_MUNICIPIO_TSE.")
-	}
+	fmt.Println("Cabeçalho detectado; colunas: SG_UF, CD_MUNICIPIO_TSE, NM_MUNICIPIO_TSE, CD_MUNICIPIO_IBGE, NM_MUNICIPIO_IBGE.")
 
 	_, _ = db.Exec(`SET search_path TO public`)
 
@@ -190,11 +176,11 @@ CREATE TABLE IF NOT EXISTS public.municipios (
 	}
 
 	processRow := func(rec []string) error {
-		sg := normUF(cell(rec, idxSGUF))
-		cod := strings.ToUpper(cell(rec, idxCDMunTSE))
-		nome := nomeMunUpper.String(cell(rec, idxNMunTSE))
-		cdIBGE := strings.TrimSpace(cell(rec, idxCDMunIBGE))
-		nmIBGE := strings.TrimSpace(cell(rec, idxNMunIBGE))
+		sg := normUF(csvutil.Cell(rec, colIdx["SG_UF"]))
+		cod := strings.ToUpper(csvutil.Cell(rec, colIdx["CD_MUNICIPIO_TSE"]))
+		nome := nomeMunUpper.String(csvutil.Cell(rec, colIdx["NM_MUNICIPIO_TSE"]))
+		cdIBGE := strings.TrimSpace(csvutil.Cell(rec, colIdx["CD_MUNICIPIO_IBGE"]))
+		nmIBGE := strings.TrimSpace(csvutil.Cell(rec, colIdx["NM_MUNICIPIO_IBGE"]))
 		if cod == "" || nome == "" {
 			skippedEmp++
 			return nil
@@ -224,12 +210,6 @@ CREATE TABLE IF NOT EXISTS public.municipios (
 			return flush()
 		}
 		return nil
-	}
-
-	if !firstIsHeader {
-		if err := processRow(header); err != nil {
-			log.Fatalf("processar primeira linha: %v", err)
-		}
 	}
 
 	for {
@@ -306,33 +286,8 @@ func buildInsertMunicipiosSQL(estado []int64, cod, nome []string) (string, []int
 	return sb.String(), args
 }
 
-func cell(rec []string, idx int) string {
-	if idx < 0 || idx >= len(rec) {
-		return ""
-	}
-	return strings.Trim(strings.TrimSpace(rec[idx]), `"`)
-}
-
 func normUF(s string) string {
 	return strings.ToUpper(strings.TrimSpace(strings.ReplaceAll(s, "\r", "")))
-}
-
-func readCSVText(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	if len(b) >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF {
-		b = b[3:]
-	}
-	if utf8.Valid(b) {
-		return string(b), nil
-	}
-	r := make([]rune, len(b))
-	for i, x := range b {
-		r[i] = rune(x)
-	}
-	return string(r), nil
 }
 
 func resolveMunicipioCSVPath() (string, error) {

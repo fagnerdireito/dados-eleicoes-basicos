@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"io/fs"
@@ -15,9 +14,10 @@ import (
 	"strings"
 	"sync"
 
+	"eleicoes/go_postgres/csvutil"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
-	"golang.org/x/text/encoding/charmap"
 )
 
 // Config holds DB configuration
@@ -294,20 +294,11 @@ func candProcessFile(db *sql.DB, path string) error {
 	}
 	defer f.Close()
 
-	reader := csv.NewReader(charmap.ISO8859_1.NewDecoder().Reader(f))
-	reader.Comma = candCsvSeparator
-	reader.LazyQuotes = true
-	reader.TrimLeadingSpace = true
+	reader := csvutil.NewLatin1Reader(f, candCsvSeparator)
 
-	rawHeader, err := reader.Read()
+	_, colIndexes, err := csvutil.ReadHeader(reader, nil)
 	if err != nil {
 		return fmt.Errorf("ler cabeçalho: %w", err)
-	}
-
-	colIndexes := make(map[string]int, len(rawHeader))
-	for i, col := range rawHeader {
-		name := strings.ToUpper(strings.Trim(col, `"`))
-		colIndexes[name] = i
 	}
 
 	targetCols := make([]string, len(candColumnLengths))
